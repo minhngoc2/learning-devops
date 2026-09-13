@@ -1,0 +1,3 @@
+Hello, World!
+This is my first DevOps lesson.
+Learning Linux basic commands: mkdir, cd, touch, nano, cat.
