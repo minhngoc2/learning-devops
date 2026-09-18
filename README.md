@@ -49,3 +49,36 @@ $ ./lesson3/health_check.sh
 ```
 
 > Trên RHEL/CentOS dịch vụ SSH tên là `sshd`, sửa trong mảng `services`.
+
+## Lesson 4 — Docker image cho Python
+
+File: [lesson4/Dockerfile](lesson4/Dockerfile), [lesson4/main.py](lesson4/main.py)
+
+| Yêu cầu | Chỉ thị Dockerfile |
+|---------|--------------------|
+| Môi trường Python 3.14 | `FROM python:3.14-slim` |
+| Thư mục làm việc `/app` | `WORKDIR /app` |
+| Cài `poetry` bằng pip | `RUN pip install --no-cache-dir poetry` |
+| Có sẵn `main.py` trong image | `COPY main.py .` |
+| `docker run` chạy `main.py` | `CMD ["python", "main.py"]` |
+
+`--no-cache-dir` để pip không giữ cache trong layer → image nhỏ hơn.
+
+Build & chạy:
+
+```bash
+docker build -t lesson4 lesson4/
+docker run --rm lesson4
+```
+
+Output:
+
+```
+$ docker run --rm lesson4
+hello world
+
+$ docker run --rm lesson4 sh -c 'pwd; python -V; poetry --version'
+/app
+Python 3.14.7
+Poetry (version 2.4.3)
+```
