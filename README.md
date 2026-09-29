@@ -27,6 +27,8 @@ Tệp mẫu: [hello_world.txt](lesson1/hello_world.txt)
 
 Script: [health_check.sh](lesson3/health_check.sh)
 
+> Bài này cần chạy trên Linux sử dụng systemd.
+
 - Khai báo hai dịch vụ: `services=("nginx" "ssh")`.
 - Dùng vòng lặp và `systemctl is-active --quiet "$svc"` để kiểm tra trạng thái.
 - Dùng `if/else` và mã màu ANSI để phân biệt dịch vụ đang chạy hoặc đã dừng.
@@ -44,9 +46,11 @@ Kết quả khi Nginx đã dừng:
 
 ```console
 $ ./lesson3/health_check.sh
-[ALERT] nginx is DOWN!     # màu đỏ
-[OK] ssh is running        # [OK] màu xanh
+[ALERT] nginx is DOWN!
+[OK] ssh is running
 ```
+
+Script hiển thị cảnh báo bằng màu đỏ và trạng thái hoạt động bằng màu xanh.
 
 > Trên RHEL/CentOS, dịch vụ SSH có tên `sshd`; hãy thay `ssh` trong mảng `services`.
 
@@ -62,6 +66,8 @@ Tệp: [Dockerfile](lesson4/Dockerfile), [main.py](lesson4/main.py)
 
 `--no-cache-dir` ngăn pip lưu cache trong layer, giúp image gọn hơn.
 
+Trong bài này, Poetry chỉ được cài vào image; việc dùng Poetry để quản lý dependency được thực hành ở Bài 5–6.
+
 Build và chạy:
 
 ```bash
@@ -74,11 +80,6 @@ Kết quả:
 ```console
 $ docker run --rm lesson4
 hello world
-
-$ docker run --rm lesson4 sh -c 'pwd; python -V; poetry --version'
-/app
-Python 3.14.7
-Poetry (version 2.4.3)
 ```
 
 ## Bài 5–6 — Docker image cho FastAPI theo hướng production
@@ -116,7 +117,7 @@ Giải thích các biến `ENV` trong Dockerfile:
 
 | Biến | Tác dụng |
 |------|----------|
-| `POETRY_VIRTUALENVS_IN_PROJECT=true` | Tạo virtual environment tại `/app/.venv` để copy sang stage `runtime`. |
+| `POETRY_VIRTUALENVS_IN_PROJECT=true` | Tạo virtual environment tại `/app/.venv` để copy sang stage cuối. |
 | `POETRY_NO_INTERACTION=1` | Không yêu cầu nhập dữ liệu trong quá trình build. |
 
 ### Runtime
@@ -145,18 +146,14 @@ $ curl --fail http://localhost:8000/
 
 $ curl --fail http://localhost:8000/health
 {"status":"ok"}
+```
 
-$ docker exec l56 sh -c 'whoami; python -V; command -v poetry || echo no-poetry'
-app
-Python 3.14.7
-no-poetry
+Kiểm tra container:
 
-$ docker ps --filter name=l56 --format '{{.Status}}'
-Up 8 seconds (healthy)
-
-$ docker logs l56 | grep 'Started server'
-INFO:     Started server process [9]
-INFO:     Started server process [8]
+```bash
+docker exec l56 sh -c 'whoami; python -V; command -v poetry || echo no-poetry'
+docker ps --filter name=l56 --format '{{.Status}}'
+docker logs l56 | grep 'Started server'
 ```
 
 Dừng và dọn dẹp:
@@ -165,5 +162,3 @@ Dừng và dọn dẹp:
 docker stop l56
 docker image rm lesson5-6
 ```
-
-Container được chạy với `--rm` nên `docker stop` cũng tự động xóa container; lệnh thứ hai xóa image đã build trên máy.
