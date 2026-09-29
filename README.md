@@ -1,37 +1,37 @@
-# learning-devops
+# Learning DevOps
 
-## Lesson 1 — Basic Linux commands
+Ghi chép và bài thực hành trong quá trình học Linux, Bash, Docker và triển khai ứng dụng.
 
-| Step | Command |
-|------|---------|
-| Tạo thư mục `~/devops/lesson1` | `mkdir -p ~/devops/lesson1` |
-| Di chuyển vào thư mục | `cd ~/devops/lesson1` |
-| Tạo file `hello_world.txt` | `touch hello_world.txt` |
-| Mở file bằng nano, viết nội dung | `nano hello_world.txt` (lưu: `Ctrl+O` → `Enter`, thoát: `Ctrl+X`) |
-| Hiển thị nội dung file | `cat hello_world.txt` |
+## Bài 1 — Các lệnh Linux cơ bản
 
-Output:
+Thực hành:
 
-```
+- Tạo thư mục: `mkdir -p ~/devops/lesson1`.
+- Di chuyển vào thư mục: `cd ~/devops/lesson1`.
+- Tạo tệp: `touch hello_world.txt`.
+- Chỉnh sửa bằng Nano: `nano hello_world.txt` (lưu: `Ctrl+O` → `Enter`, thoát: `Ctrl+X`).
+- Hiển thị nội dung: `cat hello_world.txt`.
+
+Kết quả:
+
+```console
 $ cat hello_world.txt
 Hello, World!
 This is my first DevOps lesson.
 Learning Linux basic commands: mkdir, cd, touch, nano, cat.
 ```
 
-File mẫu: [lesson1/hello_world.txt](lesson1/hello_world.txt)
+Tệp mẫu: [hello_world.txt](lesson1/hello_world.txt)
 
-## Lesson 3 — Bash script: Health check
+## Bài 3 — Bash script kiểm tra dịch vụ
 
-Script: [lesson3/health_check.sh](lesson3/health_check.sh)
+Script: [health_check.sh](lesson3/health_check.sh)
 
-| Yêu cầu | Cách làm |
-|---------|----------|
-| Khai báo mảng 2 dịch vụ | `services=("nginx" "ssh")` |
-| Vòng lặp kiểm tra trạng thái | `for svc in "${services[@]}"; do ... done` + `systemctl is-active --quiet "$svc"` |
-| Dịch vụ chết → cảnh báo đỏ | `if/else` + mã màu ANSI `\033[0;31m` với `echo -e` |
+- Khai báo hai dịch vụ: `services=("nginx" "ssh")`.
+- Dùng vòng lặp và `systemctl is-active --quiet "$svc"` để kiểm tra trạng thái.
+- Dùng `if/else` và mã màu ANSI để phân biệt dịch vụ đang chạy hoặc đã dừng.
 
-`systemctl is-active --quiet` không in gì, chỉ trả exit code: `0` = active, khác `0` = không chạy.
+`systemctl is-active --quiet` không in kết quả; exit code `0` nghĩa là dịch vụ đang chạy, các giá trị khác `0` nghĩa là dịch vụ không hoạt động.
 
 Chạy:
 
@@ -40,40 +40,38 @@ chmod +x lesson3/health_check.sh
 ./lesson3/health_check.sh
 ```
 
-Output (ví dụ nginx đã dừng):
+Kết quả khi Nginx đã dừng:
 
-```
+```console
 $ ./lesson3/health_check.sh
 [ALERT] nginx is DOWN!     # màu đỏ
 [OK] ssh is running        # [OK] màu xanh
 ```
 
-> Trên RHEL/CentOS dịch vụ SSH tên là `sshd`, sửa trong mảng `services`.
+> Trên RHEL/CentOS, dịch vụ SSH có tên `sshd`; hãy thay `ssh` trong mảng `services`.
 
-## Lesson 4 — Docker image cho Python
+## Bài 4 — Docker image cho ứng dụng Python
 
-File: [lesson4/Dockerfile](lesson4/Dockerfile), [lesson4/main.py](lesson4/main.py)
+Tệp: [Dockerfile](lesson4/Dockerfile), [main.py](lesson4/main.py)
 
-| Yêu cầu | Chỉ thị Dockerfile |
-|---------|--------------------|
-| Môi trường Python 3.14 | `FROM python:3.14-slim` |
-| Thư mục làm việc `/app` | `WORKDIR /app` |
-| Cài `poetry` bằng pip | `RUN pip install --no-cache-dir poetry` |
-| Có sẵn `main.py` trong image | `COPY main.py .` |
-| `docker run` chạy `main.py` | `CMD ["python", "main.py"]` |
+- Dùng image `python:3.14-slim`.
+- Đặt thư mục làm việc thành `/app`.
+- Cài Poetry bằng `pip install --no-cache-dir poetry`.
+- Copy `main.py` vào image.
+- Chạy ứng dụng bằng `CMD ["python", "main.py"]`.
 
-`--no-cache-dir` để pip không giữ cache trong layer → image nhỏ hơn.
+`--no-cache-dir` ngăn pip lưu cache trong layer, giúp image gọn hơn.
 
-Build & chạy:
+Build và chạy:
 
 ```bash
 docker build -t lesson4 lesson4/
 docker run --rm lesson4
 ```
 
-Output:
+Kết quả:
 
-```
+```console
 $ docker run --rm lesson4
 hello world
 
@@ -83,59 +81,63 @@ Python 3.14.7
 Poetry (version 2.4.3)
 ```
 
-## Lesson 5+6 — Production image cho FastAPI backend
+## Bài 5–6 — Docker image cho FastAPI theo hướng production
 
-File: [lesson5-6/Dockerfile](lesson5-6/Dockerfile), [lesson5-6/main.py](lesson5-6/main.py), [lesson5-6/healthcheck.py](lesson5-6/healthcheck.py), [lesson5-6/pyproject.toml](lesson5-6/pyproject.toml), [lesson5-6/poetry.lock](lesson5-6/poetry.lock)
+Tệp:
 
-| Yêu cầu | Cách làm |
-|---------|----------|
-| Python 3.14 | `FROM python:3.14-slim` (cả 2 stage) |
-| Cài poetry | `RUN pip install --no-cache-dir poetry` (chỉ ở stage `builder`) |
-| Cài FastAPI bằng poetry | Local: `poetry add --lock fastapi uvicorn` → trong image: `poetry install --only main --no-root` |
-| API hello world | `@app.get("/")` trả `{"message": "Hello World"}` |
+- [Dockerfile](lesson5-6/Dockerfile)
+- [main.py](lesson5-6/main.py)
+- [healthcheck.py](lesson5-6/healthcheck.py)
+- [pyproject.toml](lesson5-6/pyproject.toml)
+- [poetry.lock](lesson5-6/poetry.lock)
 
-Điểm "production":
+Yêu cầu:
 
-- **Multi-stage**: stage `builder` có poetry, stage cuối chỉ copy `.venv` → image không chứa poetry.
-- **`poetry.lock`** commit cùng code → build lúc nào cũng ra đúng version thư viện.
-- **Copy `pyproject.toml` + `poetry.lock` trước `main.py`** → sửa code không phải cài lại thư viện (cache layer).
-- **Chạy bằng user `app`** (non-root).
-- `package-mode = false` vì đây là app, không phải thư viện để publish.
-- **Healthcheck**: endpoint `GET /health` + `HEALTHCHECK` trong Dockerfile. Script `healthcheck.py` dùng `urllib` có sẵn trong Python nên không cần cài thêm `curl`; request lỗi hoặc trả về non-2xx sẽ làm lần kiểm tra thất bại.
-- **Nhiều worker**: uvicorn tự đọc biến `WEB_CONCURRENCY` làm số worker → `ENV WEB_CONCURRENCY=2`, đổi lúc chạy: `docker run -e WEB_CONCURRENCY=4 ...`.
+- **Python 3.14**: `FROM python:3.14-slim` ở cả hai stage.
+- **Poetry**: `RUN pip install --no-cache-dir poetry` chỉ ở stage `builder`.
+- **FastAPI và Uvicorn**: thêm các dependency bằng `poetry add --lock fastapi uvicorn`, sau đó cài trong image bằng `poetry install --only main --no-root`.
+- **API hello world**: `@app.get("/")` trả `{"message": "Hello World"}`.
 
-> Lên Kubernetes: K8s bỏ qua `HEALTHCHECK` của Docker → khai báo `livenessProbe`/`readinessProbe` trỏ vào `/health`. Thường để `WEB_CONCURRENCY=1` và scale bằng số `replicas`.
+Các điểm hướng đến production:
+
+- **Multi-stage build**: Poetry chỉ tồn tại trong stage `builder`; runtime image chỉ nhận `.venv`.
+- **Dependency lock**: commit `poetry.lock` cùng source code để cố định phiên bản các Python dependency.
+- **Tận dụng build cache**: copy `pyproject.toml` và `poetry.lock` trước source code để không cài lại dependency khi chỉ thay đổi code.
+- **Non-root user**: chạy ứng dụng bằng user `app`.
+- **Non-package mode**: `package-mode = false` vì project này chỉ cần quản lý dependency, không build package để publish.
+- **Health check**: endpoint `GET /health` và chỉ thị `HEALTHCHECK`. Script `healthcheck.py` dùng `urllib` có sẵn trong Python nên không cần cài thêm `curl`.
+- **Nhiều worker**: Uvicorn đọc `WEB_CONCURRENCY=2` và khởi chạy hai worker; có thể ghi đè khi chạy container.
+
+> Trên Kubernetes, hãy khai báo `livenessProbe` và `readinessProbe` trỏ tới `/health`. Thông thường mỗi container chạy một worker và Kubernetes scale bằng số `replicas`.
 
 Giải thích các biến `ENV` trong Dockerfile:
 
-| Biến | Stage | Tác dụng |
-|------|-------|----------|
-| `POETRY_VIRTUALENVS_IN_PROJECT=true` | builder | Poetry tạo venv ở `/app/.venv` thay vì `~/.cache/pypoetry/virtualenvs/<tên>-<hash>-py3.14` → đường dẫn cố định để `COPY --from=builder /app/.venv` sang stage 2. |
-| `POETRY_NO_INTERACTION=1` | builder | Tương đương flag `-n`: poetry không hỏi gì. Lúc `docker build` không có bàn phím để trả lời → nếu poetry hỏi thì build bị treo/lỗi. |
-| `PATH="/app/.venv/bin:$PATH"` | runtime | Đưa `.venv/bin` lên đầu `PATH` → gõ `uvicorn`, `python` là dùng bản trong venv, không cần `source .venv/bin/activate` hay `poetry run` (stage cuối cũng không có poetry). |
-| `PYTHONDONTWRITEBYTECODE=1` | runtime | Python không ghi file `.pyc` / thư mục `__pycache__`. Container chạy bằng user `app`, không có quyền ghi vào `/app` → tránh lỗi/rác, file system gọn. |
-| `PYTHONUNBUFFERED=1` | runtime | Tắt buffer stdout/stderr → log hiện ngay trong `docker logs`. Không có biến này log có thể bị giữ trong buffer, container crash là mất log. |
-| `WEB_CONCURRENCY=2` | runtime | uvicorn đọc biến này làm số worker (= `--workers 2`). Ghi đè lúc chạy: `docker run -e WEB_CONCURRENCY=4 ...`. |
+- **Builder — `POETRY_VIRTUALENVS_IN_PROJECT=true`**: Poetry tạo virtual environment tại `/app/.venv`, cung cấp đường dẫn cố định để copy sang stage `runtime`.
+- **Builder — `POETRY_NO_INTERACTION=1`**: Poetry không yêu cầu nhập dữ liệu trong lúc build.
+- **Runtime — `PATH="/app/.venv/bin:$PATH"`**: dùng `python` và `uvicorn` trong virtual environment mà không cần activate hoặc chạy `poetry run`.
+- **Runtime — `PYTHONDONTWRITEBYTECODE=1`**: không tạo file `.pyc` và thư mục `__pycache__` trong container.
+- **Runtime — `PYTHONUNBUFFERED=1`**: ghi log ngay lập tức ra stdout/stderr để xem bằng `docker logs`.
+- **Runtime — `WEB_CONCURRENCY=2`**: chạy hai Uvicorn worker; có thể ghi đè khi chạy, ví dụ `docker run -e WEB_CONCURRENCY=4 ...`.
 
-Build & chạy:
+Build và chạy:
 
 ```bash
 docker build -t lesson5-6 lesson5-6/
 docker run -d --rm --name l56 -p 8000:8000 lesson5-6
-curl localhost:8000/
-curl localhost:8000/health
+curl --fail http://localhost:8000/
+curl --fail http://localhost:8000/health
 ```
 
-Output:
+Kết quả:
 
-```
-$ curl localhost:8000/
+```console
+$ curl --fail http://localhost:8000/
 {"message":"Hello World"}
 
-$ curl localhost:8000/health
+$ curl --fail http://localhost:8000/health
 {"status":"ok"}
 
-$ docker exec l56 sh -c 'whoami; python -V; which poetry || echo no-poetry'
+$ docker exec l56 sh -c 'whoami; python -V; command -v poetry || echo no-poetry'
 app
 Python 3.14.7
 no-poetry
