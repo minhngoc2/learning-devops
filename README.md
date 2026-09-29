@@ -112,12 +112,21 @@ Các điểm hướng đến production:
 
 Giải thích các biến `ENV` trong Dockerfile:
 
-- **Builder — `POETRY_VIRTUALENVS_IN_PROJECT=true`**: Poetry tạo virtual environment tại `/app/.venv`, cung cấp đường dẫn cố định để copy sang stage `runtime`.
-- **Builder — `POETRY_NO_INTERACTION=1`**: Poetry không yêu cầu nhập dữ liệu trong lúc build.
-- **Runtime — `PATH="/app/.venv/bin:$PATH"`**: dùng `python` và `uvicorn` trong virtual environment mà không cần activate hoặc chạy `poetry run`.
-- **Runtime — `PYTHONDONTWRITEBYTECODE=1`**: không tạo file `.pyc` và thư mục `__pycache__` trong container.
-- **Runtime — `PYTHONUNBUFFERED=1`**: ghi log ngay lập tức ra stdout/stderr để xem bằng `docker logs`.
-- **Runtime — `WEB_CONCURRENCY=2`**: chạy hai Uvicorn worker; có thể ghi đè khi chạy, ví dụ `docker run -e WEB_CONCURRENCY=4 ...`.
+### Builder
+
+| Biến | Tác dụng |
+|------|----------|
+| `POETRY_VIRTUALENVS_IN_PROJECT=true` | Tạo virtual environment tại `/app/.venv` để copy sang stage `runtime`. |
+| `POETRY_NO_INTERACTION=1` | Không yêu cầu nhập dữ liệu trong quá trình build. |
+
+### Runtime
+
+| Biến | Tác dụng |
+|------|----------|
+| `PATH="/app/.venv/bin:$PATH"` | Dùng `python` và `uvicorn` trong virtual environment mà không cần activate hoặc chạy `poetry run`. |
+| `PYTHONDONTWRITEBYTECODE=1` | Không tạo file `.pyc` và thư mục `__pycache__` trong container. |
+| `PYTHONUNBUFFERED=1` | Ghi log ngay ra stdout/stderr để xem bằng `docker logs`. |
+| `WEB_CONCURRENCY=2` | Chạy hai Uvicorn worker; có thể ghi đè khi chạy container. |
 
 Build và chạy:
 
