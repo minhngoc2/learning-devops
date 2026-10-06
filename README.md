@@ -10,3 +10,4 @@ Ghi chép và bài thực hành trong quá trình học Linux, Bash, Docker và 
 | [Bài 3](lesson3/README.md) | Bash script kiểm tra dịch vụ |
 | [Bài 4](lesson4/README.md) | Docker image cho ứng dụng Python |
 | [Bài 5–6](lesson5-6/README.md) | Docker image cho FastAPI theo hướng production |
+| [Bài 8](lesson8/README.md) | Thiết kế mạng nội bộ VPC trên AWS |
