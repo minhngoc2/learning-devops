@@ -17,6 +17,7 @@ A small Go todo API backed by RDS PostgreSQL, deployed to AWS with Terraform. Th
 lesson10-11/
 ├── README.md
 ├── dev-architecture.png
+├── evidence/                   # API response and ECS deployment screenshots
 ├── app/                        # Go API, tests, Dockerfile and local Compose stack
 └── terraform/
     ├── bootstrap/              # S3 state bucket; bootstrap state stays local
@@ -35,3 +36,26 @@ Run locally with `cd app && docker compose up --build`. The API exposes `GET /he
 For AWS, apply `terraform/bootstrap` first. In `terraform/environments/dev`, copy `dev.backend.hcl.example` and `dev.tfvars.example` to their corresponding filenames without `.example`, fill in the state bucket, then initialize with `terraform init -backend-config=dev.backend.hcl`. Create the registry with `terraform apply -target=module.ecr -var-file=dev.tfvars`, build and push the app image for `linux/arm64` to that registry, then plan and apply dev with `-var-file=dev.tfvars`. Use a fresh image tag for each release.
 
 Dev is a lab: the task public IP can change, HTTP has no authentication, and the default ingress permits all IPv4 addresses. Narrow `allowed_cidr` when needed. Destroying dev deletes the database without a final snapshot and removes ECR images; AWS resources incur charges while they exist.
+
+## Deployment evidence
+
+Verified on **18 October 2026** at `http://13.213.73.233:8080`. This records the task IP at verification time; replacing the task may change it.
+
+| Check | Observed result |
+|---|---|
+| `GET /health` | `{"status":"ok"}` |
+| `GET /ready` | `{"status":"ready"}` — database connectivity succeeded |
+| `POST /todos` | Created four todos with IDs 1–4 |
+| `GET /todos` | Returned all four saved todos, also visible in the browser below |
+| ECS service `lesson10-11-dev` | Active; deployment successful; 1 desired, 1 running, 0 pending |
+| Task definition `lesson10-11-dev:3` | Running task reported healthy |
+
+The checks and screenshots below were captured from the deployed dev environment.
+
+### API response
+
+![Browser showing four saved todos at the dev API public endpoint](evidence/dev-api-todos.png)
+
+### ECS service and task
+
+![ECS dev service showing a successful deployment and one healthy running task using task definition revision 3](evidence/dev-ecs-service.png)
