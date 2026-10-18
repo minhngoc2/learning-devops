@@ -1,0 +1,2 @@
+image_tag    = "v1"
+allowed_cidr = "0.0.0.0/0" # or "<your-ip>/32"

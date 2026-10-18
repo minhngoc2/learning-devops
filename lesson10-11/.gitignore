@@ -1,0 +1,12 @@
+# Local documentation and editable diagram sources.
+/docs/
+/.archify/
+*.md
+!/README.md
+/architecture.*
+/build_arch*.py
+
+# Local app artifacts.
+.DS_Store
+**/__pycache__/
+.env

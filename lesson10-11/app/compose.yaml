@@ -1,0 +1,26 @@
+# Step 2: run the API + PostgreSQL locally before touching AWS.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: local-only
+      POSTGRES_DB: app
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "app"]
+      interval: 2s
+      retries: 15
+
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: db
+      DB_USER: app
+      DB_PASSWORD: local-only
+      DB_NAME: app
+      DB_SSLMODE: disable # local postgres has no TLS; RDS uses the default "require"
+    depends_on:
+      db:
+        condition: service_healthy
