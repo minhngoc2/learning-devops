@@ -4,19 +4,25 @@
 
 ## Result
 
-Deployed and verified on **18 October 2026**:
+Verified on **18 October 2026**:
 
-- API: [GET /todos](http://13.213.73.233:8080/todos). Created and retrieved four todos successfully.
-- Health: `/health` returned `ok`; `/ready` returned `ready`, confirming database connectivity.
-- ECS: `lesson10-11-dev` deployed successfully with one healthy Fargate task (`lesson10-11-dev:3`).
-- Evidence: [API response](evidence/dev-api-todos.png) · [ECS service](evidence/dev-ecs-service.png).
+- **API:** [GET /todos](http://13.213.73.233:8080/todos) returned four successfully created todos.
+- **Health:** `/health` returned `ok`; `/ready` returned `ready`, confirming database connectivity.
+- **ECS:** `lesson10-11-dev` deployed successfully with one healthy Fargate task (`lesson10-11-dev:3`).
+
+![API response showing four saved todos](evidence/dev-api-todos.png)
+
+![ECS service showing a successful deployment and one healthy task](evidence/dev-ecs-service.png)
 
 ## Architecture
 
 ![Dev architecture](dev-architecture.png)
 
-Terraform provisions a public ARM64 Fargate task serving the Go API on port 8080 and a private, encrypted RDS PostgreSQL 17 instance. Only the API security group can reach the database on port 5432. ECR stores the image, Secrets Manager supplies the database password at startup, CloudWatch collects logs, and S3 stores dev Terraform state with locking.
+Terraform provisions:
 
-This dev lab uses HTTP without authentication; the public IP may change when the task is replaced.
+- **API:** One public ARM64 Fargate task serving the Go API on port 8080.
+- **Database:** Private, encrypted RDS PostgreSQL 17; port 5432 accepts traffic only from the API security group.
+- **Images and secrets:** ECR stores the image; Secrets Manager supplies the database password at startup.
+- **Logs and state:** CloudWatch collects logs; S3 stores dev Terraform state with locking.
 
 See [quickstart.md](quickstart.md) for local development and AWS deployment.
