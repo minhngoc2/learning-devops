@@ -3,6 +3,7 @@
 /.archify/
 *.md
 !/README.md
+!/quickstart.md
 /architecture.*
 /build_arch*.py
 
