@@ -1,0 +1,4 @@
+aws_region    = "ap-southeast-1"
+project       = "lesson12"
+environment   = "dev"
+force_destroy = true
