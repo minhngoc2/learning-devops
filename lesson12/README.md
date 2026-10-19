@@ -21,6 +21,20 @@ The website link remains available while the lab is deployed. See the [cleanup s
 
 ## Evidence
 
+Terraform apply excerpt from `terraform/environments/dev` (identifying values redacted):
+
+```text
+$ terraform apply -var-file=dev.tfvars
+Apply complete! Resources: 8 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+aws_region = "ap-southeast-1"
+bucket_name = "lesson12-dev-<AWS_ACCOUNT_ID>"
+distribution_id = "<DISTRIBUTION_ID>"
+website_url = "https://<CLOUDFRONT_DOMAIN>"
+```
+
 Terraform test excerpt (mocked AWS; no real resources created):
 
 ```text
