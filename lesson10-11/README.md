@@ -15,8 +15,6 @@ Terraform provisions:
 
 ## Result
 
-Verified on **18 October 2026**:
-
 - **API:** [GET /todos](http://13.213.73.233:8080/todos) returned four successfully created todos.
 - **Health:** `/health` returned `ok`; `/ready` returned `ready`, confirming database connectivity.
 - **ECS:** `lesson10-11-dev` deployed successfully with one healthy Fargate task (`lesson10-11-dev:3`).

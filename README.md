@@ -12,3 +12,4 @@ Ghi chép và bài thực hành về Linux, Bash, Docker, AWS và triển khai �
 | [Bài 5–6](lesson5-6/README.md) | Docker image cho FastAPI theo hướng production |
 | [Bài 8](lesson8/README.md) | Thiết kế mạng nội bộ VPC trên AWS |
 | [Bài 10–11](lesson10-11/README.md) | Go API + RDS trên ECS Fargate bằng Terraform |
+| [Bài 12](lesson12/README.md) | Website React/Vite trên Private S3 và CloudFront HTTPS bằng Terraform |

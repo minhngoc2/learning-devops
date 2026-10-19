@@ -1,53 +1,31 @@
 # Lesson 12: React on private S3 and CloudFront
 
-Deploy a React/Vite static app to a private S3 bucket and serve it through CloudFront over HTTPS. Terraform provisions the infrastructure; the AWS CLI publishes the build. CloudFront uses Origin Access Control (OAC) to read S3 objects without making the bucket public.
+**Goal:** Build a React/Vite static website and publish it over HTTPS while keeping its S3 bucket private. Terraform manages the AWS infrastructure; the AWS CLI uploads the production build.
 
-**Start here:** [Quickstart](quickstart.md) — prerequisites, local development, deployment, uploads, verification, and cleanup.
+Start with the [quickstart](quickstart.md) for local development, deployment commands, verification, and cleanup.
 
-## Project
+## Architecture
 
-`Browser → CloudFront (HTTPS) → private S3 bucket (signed OAC requests)`
+![Website architecture showing CloudFront, signed S3 requests, caching, and storage controls](dev-architecture.png)
 
-| Component | Purpose |
-| --- | --- |
-| [React/Vite app](app/README.md) | Static demo with an interactive counter |
-| [Dev environment](terraform/environments/dev/main.tf) | Composes the modules and restricts bucket reads to its CloudFront distribution |
-| [S3 module](terraform/modules/s3-website/README.md) | Private, encrypted bucket with public access blocked |
-| [CloudFront module](terraform/modules/cloudfront-spa/README.md) | HTTPS delivery, OAC, and cache policy |
+- **Delivery:** CloudFront redirects HTTP to HTTPS and reads S3 through signed Origin Access Control (OAC) requests.
+- **Storage:** S3 stores the build with encryption, public access blocked, and a bucket policy restricting CloudFront reads to this distribution.
+- **Caching:** Hashed assets use one-year immutable caching; HTML and stable public files require revalidation. The root `/` serves `index.html`; browser-history route fallback is not configured.
 
-This lab uses the generated CloudFront hostname, local Terraform state, and manual uploads. It has no custom domain, CI/CD, or browser-history route fallback; `/` serves `index.html`.
+## Result
 
-## Result and evidence
+- **Website:** [Open the deployed app](https://d2w09l92ojbxvw.cloudfront.net). The page loaded successfully and the counter reached `6`.
+- **Infrastructure:** Terraform applied successfully in `ap-southeast-1`: **8 added, 0 changed, 0 destroyed**.
+- **Validation:** The format check and all three mocked Terraform tests passed: `private_bucket`, `https_spa`, and `bucket_policy`. These tests check configuration; the screenshots below show the deployed result.
 
-Deployment evidence captured on **19 October 2026**:
+The website link remains available while the lab is deployed. See the [cleanup steps](quickstart.md#5-cleanup) when finished to avoid ongoing charges.
 
-- **Website:** [Open the deployed app](https://d2w09l92ojbxvw.cloudfront.net). The browser screenshot shows the page loaded and the counter at `6`.
-- **S3:** The uploaded build includes `assets/`, `favicon.svg`, `icons.svg`, and `index.html`.
-- **CloudFront:** The distribution shows the generated domain and an S3 origin.
-- **Infrastructure:** The submitted apply completed successfully in `ap-southeast-1`: **8 resources added, 0 changed, 0 destroyed**. CloudFront creation took about 2 minutes 39 seconds.
-- **Validation:** The submitted format check completed without errors. All three Terraform tests passed: `private_bucket`, `https_spa`, and `bucket_policy`.
+## Evidence
 
-Apply output excerpt with identifying values replaced by placeholders:
+AWS account details and internal resource identifiers are masked in the console screenshots.
 
-```text
-Apply complete! Resources: 8 added, 0 changed, 0 destroyed.
+![Deployed React/Vite website through CloudFront, with the counter at 6](evidence/website.png)
 
-Outputs:
+![S3 objects showing the uploaded assets and index.html](evidence/s3-objects-redacted.png)
 
-aws_region = "ap-southeast-1"
-bucket_name = "lesson12-dev-<AWS_ACCOUNT_ID>"
-distribution_id = "<DISTRIBUTION_ID>"
-website_url = "https://<CLOUDFRONT_DOMAIN>"
-```
-
-The eight resources cover the S3 bucket, ownership controls, public-access block, encryption, bucket policy, CloudFront distribution, OAC, and cache policy. The Terraform tests use a mocked AWS provider; the apply log and screenshots provide deployment evidence.
-
-Account-identifying bucket names, the ARN, and internal resource IDs are masked in the console images. The public website link above is intentionally visible; availability depends on the lab remaining deployed.
-
-![Deployed React/Vite page through CloudFront, with the counter at 6](evidence/website.png)
-
-![S3 objects showing the uploaded build; bucket name redacted](evidence/s3-objects-redacted.png)
-
-![CloudFront distribution with an S3 origin; internal identifiers redacted](evidence/cloudfront-redacted.png)
-
-See the [cleanup steps](quickstart.md#5-cleanup) when finished. Resources can incur charges; the example enables `force_destroy`, which allows bucket deletion to remove all uploaded objects.
+![CloudFront distribution showing the website domain and S3 origin](evidence/cloudfront-redacted.png)
