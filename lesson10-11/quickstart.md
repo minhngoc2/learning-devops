@@ -1,23 +1,24 @@
 # Quickstart
 
-Run from `lesson10-11/`. Local development requires Docker Compose. AWS deployment also requires Terraform >= 1.10 and < 2.0, AWS CLI credentials, and permissions to create the lab resources.
+From `lesson10-11/`, use one terminal; stop on failures.
 
-## Run locally
+Requires Docker Compose with ARM64 builds, Terraform `>= 1.10, < 2.0`, and AWS CLI v2 with lab permissions. Set `AWS_PROFILE` if needed. AWS resources incur charges.
+
+## 1. Run locally
 
 ```bash
-cd app
-docker compose up -d --build
+docker compose -f app/compose.yaml up -d --build
 curl --fail-with-body http://localhost:8080/ready
 curl --fail-with-body -X POST http://localhost:8080/todos \
   -H 'Content-Type: application/json' -d '{"title":"hello locally"}'
 curl --fail-with-body http://localhost:8080/todos
 ```
 
-If the API is still starting, retry `/ready`. Stop with `docker compose down`.
+Retry `/ready` during startup. Stop: `docker compose -f app/compose.yaml down`.
 
-## Deploy dev to AWS
+## 2. Create the state backend
 
-For a new deployment, start in `lesson10-11/`. For an existing deployment, reuse its backend configuration and bootstrap state.
+Reuse existing bootstrap state/backend files. Review plans before applying.
 
 ```bash
 export LESSON_DIR="$PWD"
@@ -31,14 +32,20 @@ terraform apply bootstrap.tfplan
 terraform output -raw state_bucket
 
 cd "$LESSON_DIR/terraform/environments/dev"
-cp -n dev.backend.hcl.example dev.backend.hcl
-cp -n dev.tfvars.example dev.tfvars
+test -f dev.backend.hcl || cp dev.backend.hcl.example dev.backend.hcl
+test -f dev.tfvars || cp dev.tfvars.example dev.tfvars
 ```
 
-Set `bucket` in `dev.backend.hcl` to the bootstrap output. Set `allowed_cidr` in `dev.tfvars` to your public IP with `/32` to restrict API access, or retain the public lab default. Then create ECR and publish the image before deploying the service:
+Set backend `bucket` to the output and `allowed_cidr` to your public IP `/32` (default: public). Never commit local state or variable files.
+
+## 3. Publish and deploy
+
+From `terraform/environments/dev`:
 
 ```bash
 terraform init -backend-config=dev.backend.hcl
+terraform fmt -check -recursive "$LESSON_DIR/terraform"
+terraform validate
 terraform apply -target=module.ecr -var-file=dev.tfvars
 REPO=$(terraform output -raw ecr_repository_url)
 
@@ -51,19 +58,20 @@ terraform plan -var-file=dev.tfvars -out=dev.tfplan
 terraform apply dev.tfplan
 ```
 
-For subsequent releases, use a new image tag and set the same `image_tag` in `dev.tfvars` before planning and applying.
+Updates require a new immutable image tag and matching `image_tag` in `dev.tfvars`.
 
-## Verify
+## 4. Verify
 
-Wait for the service to stabilize, then print the commands that discover the task public IP:
+Wait for ECS; print the public-IP discovery commands:
 
 ```bash
 aws ecs wait services-stable --region "$AWS_REGION" \
-  --cluster lesson10-11-dev --services lesson10-11-dev
+  --cluster "$(terraform output -raw cluster_name)" \
+  --services "$(terraform output -raw service_name)"
 terraform output -raw get_public_ip
 ```
 
-Run the printed commands, then use the returned IP:
+Run them, then set the returned IP below. Task replacements change it; `allowed_cidr` must allow your IP.
 
 ```bash
 API_IP='<task-public-ip>'
@@ -74,12 +82,14 @@ curl --fail-with-body -X POST "http://$API_IP:8080/todos" \
 curl --fail-with-body "http://$API_IP:8080/todos"
 ```
 
-## Clean up
+Expect `ok`, `ready`, and your saved todo.
 
-AWS resources incur charges. When the lab data is no longer needed, run this from `terraform/environments/dev`:
+## 5. Cleanup
+
+From `terraform/environments/dev`:
 
 ```bash
 terraform destroy -var-file=dev.tfvars
 ```
 
-This deletes the database without a final snapshot and removes ECR images. The bootstrap state bucket remains; preserve the local bootstrap state file.
+**Destroy deletes dev RDS without a final snapshot and removes ECR images.** The protected bootstrap bucket remains; retain its local state.

@@ -1,6 +1,6 @@
 # Lesson 12: React on private S3 and CloudFront
 
-**Goal:** Build a React/Vite static website and publish it over HTTPS while keeping its S3 bucket private. Terraform manages the AWS infrastructure; the AWS CLI uploads the production build.
+**Goal:** Host a React/Vite website over CloudFront HTTPS with a private S3 origin. Terraform creates the infrastructure; the AWS CLI uploads the build.
 
 Start with the [quickstart](quickstart.md) for local development, deployment commands, verification, and cleanup.
 
@@ -16,11 +16,21 @@ Start with the [quickstart](quickstart.md) for local development, deployment com
 
 - **Website:** [Open the deployed app](https://d2w09l92ojbxvw.cloudfront.net). The page loaded successfully and the counter reached `6`.
 - **Infrastructure:** Terraform applied successfully in `ap-southeast-1`: **8 added, 0 changed, 0 destroyed**.
-- **Validation:** The format check and all three mocked Terraform tests passed: `private_bucket`, `https_spa`, and `bucket_policy`. These tests check configuration; the screenshots below show the deployed result.
 
 The website link remains available while the lab is deployed. See the [cleanup steps](quickstart.md#5-cleanup) when finished to avoid ongoing charges.
 
 ## Evidence
+
+Terraform test excerpt (mocked AWS; no real resources created):
+
+```text
+$ terraform -chdir=terraform/environments/dev test
+  run "private_bucket"... pass
+  run "https_spa"... pass
+  run "bucket_policy"... pass
+
+Success! 3 passed, 0 failed.
+```
 
 AWS account details and internal resource identifiers are masked in the console screenshots.
 

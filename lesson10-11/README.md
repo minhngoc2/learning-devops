@@ -1,12 +1,12 @@
 # Lesson 10–11: Go API + PostgreSQL on AWS
 
-**Assignment:** Build an API connected to a database, deploy the API to ECS and the database to RDS, and submit the ECS public endpoint and an architecture diagram.
+**Goal:** Deploy a Go todo API to ECS Fargate and PostgreSQL to private RDS using Terraform.
+
+Start with the [quickstart](quickstart.md) for local development, deployment, verification, and cleanup.
 
 ## Architecture
 
 ![Dev architecture](dev-architecture.png)
-
-Terraform provisions:
 
 - **API:** One public ARM64 Fargate task serving the Go API on port 8080.
 - **Database:** Private, encrypted RDS PostgreSQL 17; port 5432 accepts traffic only from the API security group.
@@ -19,9 +19,25 @@ Terraform provisions:
 - **Health:** `/health` returned `ok`; `/ready` returned `ready`, confirming database connectivity.
 - **ECS:** `lesson10-11-dev` deployed successfully with one healthy Fargate task (`lesson10-11-dev:3`).
 
-See [quickstart.md](quickstart.md) for local development and AWS deployment.
-
 ## Evidence
+
+Terraform test excerpts (mocked AWS; no real resources created):
+
+```text
+$ terraform -chdir=terraform/modules/ecs test
+  run "dev_direct_access"... pass
+  run "staging_alb_access"... pass
+  run "reject_missing_ingress_source"... pass
+
+Success! 3 passed, 0 failed.
+
+$ terraform -chdir=terraform/modules/rds test
+  run "protected_defaults"... pass
+  run "unique_final_snapshot"... pass
+  run "dev_skips_final_snapshot"... pass
+
+Success! 3 passed, 0 failed.
+```
 
 ![API response showing four saved todos](evidence/dev-api-todos.png)
 

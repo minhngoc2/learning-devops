@@ -1,42 +1,28 @@
 # Quickstart
 
-Run commands from `lesson12/` unless a step explicitly changes directory. Use the same terminal so the deployment variables remain available.
+Run from `lesson12/` in one terminal. Stop if any command fails.
 
-## 1. Prerequisites and local app
+Requires Node.js 22.13+ on the 22.x line or Node.js 24+, npm, Terraform `>= 1.10, < 2.0`, and AWS CLI v2. Use AWS credentials allowed to manage S3, CloudFront, OAC, cache policies, and tags; export `AWS_PROFILE` first if needed.
 
-- Node.js 22.13+ on the 22.x line, or Node.js 24+, and npm (compatible with the locked Vite and ESLint dependencies).
-- Terraform `>= 1.10, < 2.0` and AWS CLI v2 for deployment.
-- AWS credentials for the intended account, with permission to manage S3 buckets, bucket settings/policies/objects, CloudFront distributions, OAC, cache policies, and tags. An AWS sandbox account is appropriate for this lab.
+AWS resources incur charges. Terraform state stays local: retain it for updates and cleanup, and keep it out of Git.
 
-```sh
-cd app
-npm ci
-npm run dev
-```
-
-Open the URL Vite prints (normally `http://localhost:5173`). Stop the server with Ctrl+C, then return to `lesson12/`:
+## 1. Run locally
 
 ```sh
-cd ..
+npm --prefix app ci
+npm --prefix app run dev
 ```
 
-For AWS, configure credentials using your usual profile or SSO flow. If using a named profile, export `AWS_PROFILE` before continuing. Confirm the account:
+Open the printed URL, usually `http://localhost:5173`. Stop with Ctrl+C before continuing.
+
+## 2. Create infrastructure
 
 ```sh
 aws sts get-caller-identity
-```
-
-Deployment creates billable resources. This guide uses local Terraform state; keep the state files until cleanup and do not commit them.
-
-## 2. Validate and create infrastructure
-
-If `terraform/environments/dev/dev.tfvars` does not exist, create it from the example:
-
-```sh
 test -f terraform/environments/dev/dev.tfvars || cp terraform/environments/dev/dev.tfvars.example terraform/environments/dev/dev.tfvars
 ```
 
-Review that file before applying. Defaults in the example are region `ap-southeast-1`, project `lesson12`, environment `dev`, and **`force_destroy = true`**. This permits destroy to delete all bucket contents; set it to `false` to require an empty bucket instead. The project must be 3–31 lowercase letters/digits/hyphens, start with a letter, and end with a letter or digit. Environments are `dev`, `staging`, or `prod`.
+Review `dev.tfvars`: the example uses `ap-southeast-1`, project `lesson12`, environment `dev`, and **`force_destroy = true`**, allowing destroy to delete every bucket object. Set it to `false` to require an empty bucket. Use a distinct project/environment for a separate deployment.
 
 ```sh
 terraform -chdir=terraform/environments/dev init
@@ -47,17 +33,13 @@ terraform -chdir=terraform/environments/dev plan -var-file=dev.tfvars
 terraform -chdir=terraform/environments/dev apply -var-file=dev.tfvars
 ```
 
-The tests use a mocked AWS provider and create no real resources, including the test run that uses `command = apply`. Real `plan`/`apply` require AWS credentials. Terraform installs AWS provider `~> 6.0`; retain and commit the generated `.terraform.lock.hcl` for repeatable provider selection.
-
-Review the plan and confirm the interactive apply prompt. CloudFront provisioning can take several minutes. Terraform outputs the bucket name, distribution ID, website URL, and AWS region. The URL will serve an error until you upload the build.
+Tests mock AWS and create no resources. Review the real plan before confirming apply; CloudFront takes several minutes. Keep `.terraform.lock.hcl` in Git. The website serves errors until the build is uploaded.
 
 ## 3. Build and publish
 
 ```sh
-cd app
-npm run lint
-npm run build
-cd ..
+npm --prefix app run lint
+npm --prefix app run build
 
 BUCKET_NAME="$(terraform -chdir=terraform/environments/dev output -raw bucket_name)"
 DISTRIBUTION_ID="$(terraform -chdir=terraform/environments/dev output -raw distribution_id)"
@@ -65,7 +47,7 @@ WEBSITE_URL="$(terraform -chdir=terraform/environments/dev output -raw website_u
 DEPLOY_REGION="$(terraform -chdir=terraform/environments/dev output -raw aws_region)"
 ```
 
-Upload hashed assets first, other public files next, and HTML last so the new page references assets already present. Stop if any command fails; do not publish HTML after a failed asset upload.
+Upload hashed assets first, stable public files second, and HTML last. **Do not publish HTML after a failed upload.**
 
 ```sh
 aws s3 cp app/dist/assets/ "s3://$BUCKET_NAME/assets/" \
@@ -87,11 +69,9 @@ aws cloudfront wait invalidation-completed \
   --distribution-id "$DISTRIBUTION_ID" --id "$INVALIDATION_ID"
 ```
 
-Use the same build/upload/invalidation steps for updates. These commands overwrite current files but retain older hashed assets so already-open pages can still fetch them. The upload is not atomic; concurrent deployments need coordination. Avoid immediately deleting old assets on a live site. For this small lab, `cp` deliberately reuploads files so cache metadata is updated even when file contents have not changed; `sync` skips unchanged files. See the AWS CLI references for [copying files](https://docs.aws.amazon.com/cli/latest/reference/s3/cp.html) and [sync metadata behavior](https://docs.aws.amazon.com/cli/latest/reference/s3/sync.html).
+Repeat these steps for updates. Uploads overwrite current files but retain old hashed assets for open pages; coordinate releases because uploads are not atomic. `cp` reapplies cache metadata even for unchanged files. Keep unhashed public files outside `public/assets/`; do not use public-read ACLs.
 
-Only Vite's hashed `assets/` files get immutable caching. Files copied from `public/`, such as `icons.svg`, keep stable names and use `no-cache`. Keep unhashed public files outside `public/assets/` when following this recipe. Do not use public-read ACLs; the bucket enforces ownership and blocks public access.
-
-## 4. Verify and troubleshoot
+## 4. Verify
 
 ```sh
 printf '%s\n' "$WEBSITE_URL"
@@ -100,24 +80,20 @@ curl --head "${WEBSITE_URL/https:/http:}/"
 curl --head "https://$BUCKET_NAME.s3.$DEPLOY_REGION.amazonaws.com/index.html"
 ```
 
-Open the HTTPS URL in a browser and check that the counter works. Expect HTTP `200` and `Cache-Control: no-cache` for the page, an HTTP-to-HTTPS redirect, and `403 AccessDenied` for anonymous direct S3 access. Check a hashed asset URL from `app/dist/index.html` for `public,max-age=31536000,immutable`.
+Expect HTTPS `200` with `Cache-Control: no-cache`, an HTTP-to-HTTPS redirect, and anonymous S3 `403 AccessDenied`. Open the website and test the counter; inspect a hashed asset URL for `public,max-age=31536000,immutable`.
 
-| Symptom | Check |
+| Problem | Check |
 | --- | --- |
-| CloudFront `/` returns 403 | Verify `index.html` exists at the bucket root, the upload succeeded, and apply finished attaching the bucket policy. Complete an invalidation if you visited before uploading. |
-| Old page after publishing | Confirm the bucket/distribution outputs match this deployment, inspect object cache headers, and wait for invalidation completion. |
-| `/some/route` returns 403 or 404 | Expected: there is no history-route fallback. Use `/` and real object paths until route handling is implemented. |
-| Name already exists | Resource names use `<project>-<environment>-<account-id>`. Choose a distinct project/environment for a separate stack; retain the original state for existing resources. |
-| Terraform init cannot download the provider | Check network access to the Terraform registry and retry init. |
-| Permission denied | Check `AWS_PROFILE`, session expiry, account identity, and the relevant S3/CloudFront IAM permissions. |
+| CloudFront `/` returns 403 | Upload root `index.html`, confirm apply attached the bucket policy, then invalidate if you visited before uploading. |
+| Old content | Check the deployment outputs and cache headers; wait for invalidation completion. |
+| Other routes return 403/404 | Expected: only `/` maps to `index.html`; there is no browser-history fallback. |
+| AWS access denied | Check the profile, account, session expiry, and required S3/CloudFront permissions. |
 
 ## 5. Cleanup
-
-From `lesson12/`, with the same credentials and variable file:
 
 ```sh
 terraform -chdir=terraform/environments/dev plan -destroy -var-file=dev.tfvars
 terraform -chdir=terraform/environments/dev destroy -var-file=dev.tfvars
 ```
 
-Review the destroy plan before confirming. With `force_destroy = true`, **all uploaded files are permanently deleted**. With `false`, a non-empty bucket prevents deletion; empty that specific lab bucket intentionally or change the setting and apply it before retrying destroy. CloudFront deletion can take several minutes. Do not delete local state as a substitute for destroying resources.
+Review before confirming: **`force_destroy = true` permanently deletes all bucket contents**. With `false`, empty the intended lab bucket before destroy. Wait for CloudFront deletion; deleting local state does not remove AWS resources.
