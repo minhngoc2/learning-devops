@@ -1,21 +1,21 @@
-# CloudFront SPA module
+# CloudFront delivery
 
-Creates a CloudFront distribution, signed S3 Origin Access Control, and cache policy. Viewers use the default CloudFront certificate and are redirected from HTTP to HTTPS. The origin must be an S3 REST endpoint; S3 website endpoints do not support OAC.
+Creates a distribution, Origin Access Control (OAC), and cache policy. CloudFront redirects HTTP to HTTPS and signs S3 REST-origin requests with SigV4. S3 website endpoints are not supported.
 
-| Input | Required/default | Description |
+| Input | Default | Purpose |
 | --- | --- | --- |
-| `name` | Required | Unique name for the distribution's supporting resources |
-| `bucket_regional_domain_name` | Required | S3 regional REST hostname |
-| `min_ttl` | `0` | Minimum cache lifetime in seconds |
-| `default_ttl` | `0` | Cache lifetime in seconds when the origin provides no freshness headers |
-| `max_ttl` | `31536000` | Maximum cache lifetime in seconds (one year) |
+| `name` | Required | Resource name prefix |
+| `bucket_regional_domain_name` | Required | S3 REST origin hostname |
+| `min_ttl` | `0` | Minimum cache lifetime, seconds |
+| `default_ttl` | `0` | Lifetime when freshness headers are absent |
+| `max_ttl` | `31536000` | Maximum cache lifetime, seconds |
 
 Outputs: `distribution_id`, `distribution_arn`, `domain_name`.
 
-The caller must grant the CloudFront service principal `s3:GetObject` with `AWS:SourceArn` restricted to `distribution_arn`. The [dev root](../../environments/dev/main.tf) handles this policy.
+The [dev root](../../environments/dev/main.tf) grants `cloudfront.amazonaws.com` read access restricted to this distribution's `AWS:SourceArn`.
 
-The default root object is `index.html`. Other requests map directly to S3 objects; no CloudFront Function or route fallback is configured. Add fallback handling if the app later uses browser-history routes. Query strings stay available to the browser but do not affect static origin content or the cache key; cookies are also excluded.
+Only `/` maps to `index.html`; other paths map directly to S3 keys. No URL rewrite or error fallback is configured. Cookies and query strings are excluded from the cache key.
 
-By default, the cache policy respects object Cache-Control with min/default TTL 0 and max TTL one year. Upload metadata controls HTML freshness and immutable hashed asset caching. TTL inputs must be whole seconds with `0 <= min_ttl <= default_ttl <= max_ttl`. Setting `min_ttl` above zero can force caching even when the origin sends `no-cache`, `no-store`, or `private`. There are no blanket 403/404-to-200 responses.
+Object `Cache-Control` controls freshness within the TTL limits. TTLs must be whole seconds with `0 <= min_ttl <= default_ttl <= max_ttl`. A positive `min_ttl` can override `no-cache`, `no-store`, and `private`; keep it at zero for this lab.
 
-See [quickstart](../../../quickstart.md) for publishing and invalidation.
+See the [quickstart](../../../quickstart.md) for upload metadata and invalidation.

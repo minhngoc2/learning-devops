@@ -1,5 +1,5 @@
 output "bucket_name" {
-  description = "Upload the contents of app/dist/ to this bucket."
+  description = "Upload the contents of nuxt-app/.output/public/ to this bucket."
   value       = module.s3_website.bucket_name
 }
 
@@ -9,7 +9,7 @@ output "distribution_id" {
 }
 
 output "website_url" {
-  description = "Public HTTPS URL of the SPA."
+  description = "Public HTTPS URL of the Nuxt static website."
   value       = "https://${module.cloudfront.domain_name}"
 }
 

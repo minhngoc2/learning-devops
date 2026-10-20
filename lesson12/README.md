@@ -1,55 +1,49 @@
-# Lesson 12: React on private S3 and CloudFront
+# Lesson 12: Nuxt on private S3 and CloudFront
 
-**Goal:** Host a React/Vite website over CloudFront HTTPS with a private S3 origin. Terraform creates the infrastructure; the AWS CLI uploads the build.
+> [!NOTE]
+> CloudFront serves the default Nuxt welcome page over HTTPS. S3 stays private, and Origin Access Control (OAC) signs CloudFront’s requests to S3.
+>
+> Terraform provisions the infrastructure; pnpm generates the static files; the AWS CLI uploads them.
 
-Start with the [quickstart](quickstart.md) for local development, deployment commands, verification, and cleanup.
+- **[Start with the quickstart](quickstart.md)**
+- [App notes](nuxt-app/README.md)
+- [Cleanup](quickstart.md#5-cleanup)
 
 ## Architecture
 
-![Website architecture showing CloudFront, signed S3 requests, caching, and storage controls](dev-architecture.png)
+**Browser → CloudFront → Private S3**
 
-- **Delivery:** CloudFront redirects HTTP to HTTPS and reads S3 through signed Origin Access Control (OAC) requests.
-- **Storage:** S3 stores the build with encryption, public access blocked, and a bucket policy restricting CloudFront reads to this distribution.
-- **Caching:** Hashed assets use one-year immutable caching; HTML and stable public files require revalidation. The root `/` serves `index.html`; browser-history route fallback is not configured.
+Nuxt generates `nuxt-app/.output/public/` locally. CloudFront serves the uploaded files; no application server runs in AWS.
 
-## Result
+![Nuxt architecture showing CloudFront delivery, private S3, OAC, caching, and storage controls](diagrams/architecture.png)
 
-- **Website:** [Open the deployed app](https://d2w09l92ojbxvw.cloudfront.net). The page loaded successfully and the counter reached `6`.
-- **Infrastructure:** Terraform applied successfully in `ap-southeast-1`: **8 added, 0 changed, 0 destroyed**.
+**Routing:** Only `/` maps to `index.html`. Nested page URLs need a CloudFront rewrite.
 
-The website link remains available while the lab is deployed. See the [cleanup steps](quickstart.md#5-cleanup) when finished to avoid ongoing charges.
+## Deployment evidence
 
-## Evidence
+**Recorded:** October 20, 2026 · **Nuxt:** 4.6.2 · **Region:** `ap-southeast-1`
 
-Terraform apply excerpt from `terraform/environments/dev` (identifying values redacted):
+| Check | Result |
+| --- | --- |
+| Terraform apply | 8 added, 0 changed, 0 destroyed |
+| CloudFront website | Default Nuxt welcome page loaded |
+| HTTPS `/` | `200`, HTML, `Cache-Control: no-cache` |
+| HTTP `/` | `301` redirect to HTTPS |
+| Anonymous S3 access | `403 Forbidden` |
 
-```text
-$ terraform apply -var-file=dev.tfvars
-Apply complete! Resources: 8 added, 0 changed, 0 destroyed.
+Account and resource identifiers are masked.
 
-Outputs:
+### Nuxt website
 
-aws_region = "ap-southeast-1"
-bucket_name = "lesson12-dev-<AWS_ACCOUNT_ID>"
-distribution_id = "<DISTRIBUTION_ID>"
-website_url = "https://<CLOUDFRONT_DOMAIN>"
-```
+![Nuxt welcome page served through CloudFront](evidence/website.png)
 
-Terraform test excerpt (mocked AWS; no real resources created):
+### CloudFront origin
 
-```text
-$ terraform -chdir=terraform/environments/dev test
-  run "private_bucket"... pass
-  run "https_spa"... pass
-  run "bucket_policy"... pass
+![CloudFront distribution with an S3 origin; identifiers masked](evidence/cloudfront-redacted.png)
 
-Success! 3 passed, 0 failed.
-```
+### S3 static files
 
-AWS account details and internal resource identifiers are masked in the console screenshots.
+![Generated Nuxt files in S3; bucket name masked](evidence/s3-objects-redacted.png)
 
-![Deployed React/Vite website through CloudFront, with the counter at 6](evidence/website.png)
-
-![S3 objects showing the uploaded assets and index.html](evidence/s3-objects-redacted.png)
-
-![CloudFront distribution showing the website domain and S3 origin](evidence/cloudfront-redacted.png)
+> [!CAUTION]
+> AWS resources incur charges until removed. Follow the [cleanup steps](quickstart.md#5-cleanup) when finished. The dev example enables `force_destroy`, so destroying the bucket permanently deletes its contents.
