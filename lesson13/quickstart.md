@@ -160,9 +160,17 @@ log_group_name        = "/aws/lambda/lesson13-dev"
 
 ## 6. Verify
 
+Set the shell variables first. Steps 6 and 7 use them, so set them again in any new terminal:
+
 ```sh
 API_URL="$(terraform -chdir=terraform/environments/dev output -raw api_url)"
+REGION="$(terraform -chdir=terraform/environments/dev output -raw aws_region)"
+```
 
+> [!NOTE]
+> If `REGION` is empty, the AWS CLI fails with `Invalid endpoint: https://lambda..amazonaws.com`. If `API_URL` is empty, `curl` fails before it reaches AWS.
+
+```sh
 curl -i "$API_URL/health"
 curl -i "$API_URL/hello?name=lesson13"
 curl -i -X POST "$API_URL/echo" -H 'Content-Type: application/json' -d '{"a":1}'
@@ -175,11 +183,17 @@ Expected responses: `200`, `200`, `200`, `400`, `404`.
 <details>
 <summary>Sample output</summary>
 
+The 404 body is `{"message":"Not Found"}` from API Gateway, not the function's `{"error":"route not found"}`. No route matches, so Lambda never runs.
+
 ```text
 HTTP/2 200
 content-type: application/json
-apigw-requestid: FseZZgO-SQ0EP5w=
+content-length: 15
+apigw-requestid: Fs_l6iiZyQ0EP2w=
 
+{"status":"ok"}
+
+HTTP/2 200
 {"message":"Hello, lesson13!"}
 
 HTTP/2 200
@@ -197,7 +211,6 @@ HTTP/2 404
 Read the function logs:
 
 ```sh
-REGION="$(terraform -chdir=terraform/environments/dev output -raw aws_region)"
 aws logs tail "$(terraform -chdir=terraform/environments/dev output -raw log_group_name)" --since 10m --region "$REGION"
 ```
 
@@ -207,13 +220,13 @@ aws logs tail "$(terraform -chdir=terraform/environments/dev output -raw log_gro
 The stream name is `<date>/<function>[<version>]<environment-id>`. One warm execution environment served every request below, so they share one stream. Only the first request is a cold start (`INIT_START`, `Init Duration`).
 
 ```text
-2026-10-23T11:25:47 2026/10/23/lesson13-dev[$LATEST]1a16eb… INIT_START Runtime Version: provided:al2023.AmazonLinux2023.v193
-2026-10-23T11:25:47 2026/10/23/lesson13-dev[$LATEST]1a16eb… START RequestId: 67f96136-… Version: $LATEST
-2026-10-23T11:25:47 2026/10/23/lesson13-dev[$LATEST]1a16eb… {"level":"INFO","msg":"request","route":"GET /hello","request_id":"FseZZgO-SQ0EP5w="}
-2026-10-23T11:25:47 2026/10/23/lesson13-dev[$LATEST]1a16eb… END RequestId: 67f96136-…
-2026-10-23T11:25:47 2026/10/23/lesson13-dev[$LATEST]1a16eb… REPORT Duration: 2.07 ms  Billed Duration: 62 ms  Memory Size: 128 MB  Max Memory Used: 23 MB  Init Duration: 59.63 ms
-2026-10-23T11:26:00 2026/10/23/lesson13-dev[$LATEST]1a16eb… {"level":"INFO","msg":"request","route":"POST /echo","request_id":"FsebYjozyQ0EP0g="}
-2026-10-23T11:26:00 2026/10/23/lesson13-dev[$LATEST]1a16eb… REPORT Duration: 1.31 ms  Billed Duration: 2 ms  Memory Size: 128 MB  Max Memory Used: 23 MB
+2026-10-23T15:12:24 2026/10/23/lesson13-dev[$LATEST]9ebfe2… INIT_START Runtime Version: provided:al2023.AmazonLinux2023.v193
+2026-10-23T15:12:24 2026/10/23/lesson13-dev[$LATEST]9ebfe2… START RequestId: fb222128-… Version: $LATEST
+2026-10-23T15:12:24 2026/10/23/lesson13-dev[$LATEST]9ebfe2… {"level":"INFO","msg":"request","route":"GET /health","request_id":"Fs_l6iiZyQ0EP2w="}
+2026-10-23T15:12:24 2026/10/23/lesson13-dev[$LATEST]9ebfe2… END RequestId: fb222128-…
+2026-10-23T15:12:24 2026/10/23/lesson13-dev[$LATEST]9ebfe2… REPORT Duration: 8.72 ms  Billed Duration: 70 ms  Memory Size: 128 MB  Max Memory Used: 23 MB  Init Duration: 60.45 ms
+2026-10-23T15:12:28 2026/10/23/lesson13-dev[$LATEST]9ebfe2… {"level":"INFO","msg":"request","route":"GET /hello","request_id":"Fs_mdgiXSQ0EPqA="}
+2026-10-23T15:12:28 2026/10/23/lesson13-dev[$LATEST]9ebfe2… REPORT Duration: 1.16 ms  Billed Duration: 2 ms  Memory Size: 128 MB  Max Memory Used: 23 MB
 ```
 
 </details>
@@ -227,12 +240,13 @@ aws logs tail "$(terraform -chdir=terraform/environments/dev output -raw access_
 <details>
 <summary>Sample output</summary>
 
-`requestId` matches `request_id` in the function log, so you can follow one request through both. `latencyMs` is the total time at API Gateway; `integrationLatency` is the part spent in Lambda. The cold start shows as 276 ms, and warm requests take 15–19 ms. The `/unknown` 404 does not appear here.
+`requestId` matches `request_id` in the function log, so you can follow one request through both. `latencyMs` is the total time at API Gateway; `integrationLatency` is the part spent in Lambda. The cold start shows as 305 ms, and warm requests take 15–35 ms. The `/unknown` 404 does not appear here.
 
 ```json
-{"routeKey":"GET /hello","status":"200","latencyMs":"276","integrationLatency":"272","requestId":"FseZZgO-SQ0EP5w=","sourceIp":"<redacted>","integrationError":"-"}
-{"routeKey":"POST /echo","status":"200","latencyMs":"15","integrationLatency":"11","requestId":"FsebYjozyQ0EP0g=","sourceIp":"<redacted>","integrationError":"-"}
-{"routeKey":"POST /echo","status":"400","latencyMs":"19","integrationLatency":"15","requestId":"FsecKhxqSQ0EPqA=","sourceIp":"<redacted>","integrationError":"-"}
+{"integrationError":"-","integrationLatency":"302","latencyMs":"305","requestId":"Fs_l6iiZyQ0EP2w=","routeKey":"GET /health","sourceIp":"<redacted>","status":"200"}
+{"integrationError":"-","integrationLatency":"30","latencyMs":"35","requestId":"Fs_mdgiXSQ0EPqA=","routeKey":"GET /hello","sourceIp":"<redacted>","status":"200"}
+{"integrationError":"-","integrationLatency":"10","latencyMs":"15","requestId":"Fs_m1ipfyQ0EPtw=","routeKey":"POST /echo","sourceIp":"<redacted>","status":"200"}
+{"integrationError":"-","integrationLatency":"12","latencyMs":"16","requestId":"Fs_nMitPSQ0EPMQ=","routeKey":"POST /echo","sourceIp":"<redacted>","status":"400"}
 ```
 
 </details>
@@ -249,7 +263,7 @@ aws lambda invoke --region "$REGION" \
 <details>
 <summary>Sample output</summary>
 
-The first object is the function's response; the second is the CLI's own result.
+The first object is the function's response; the second is the CLI's own result. Both go to stdout with no newline between them, so pipe to `jq` to read them as two objects.
 
 ```json
 {"statusCode":200,"headers":{"Content-Type":"application/json"},"multiValueHeaders":null,"body":"{\"status\":\"ok\"}","cookies":null}
@@ -260,7 +274,12 @@ The first object is the function's response; the second is the CLI's own result.
 
 ## 7. Release a code change
 
-Edit `app/main.go` and its test in `app/main_test.go` (the test compares the exact body), then rebuild and apply:
+Make a small, visible change. For example, add a version to `/health`:
+
+- `app/main.go`: `map[string]string{"status": "ok", "version": "v2"}`
+- `app/main_test.go`: change the `health` case to expect `` `{"status":"ok","version":"v2"}` ``. The test compares the exact body, so it fails if you skip this.
+
+Then test, rebuild and apply:
 
 ```sh
 go -C app test ./...
@@ -269,22 +288,40 @@ terraform -chdir=terraform/environments/dev plan -var-file=dev.tfvars -out=dev.t
 terraform -chdir=terraform/environments/dev apply dev.tfplan
 ```
 
-The plan should show only `aws_lambda_function` with a changed `source_code_hash` (1 to change). Run step 6 again.
+The plan should show only `aws_lambda_function` with a changed `source_code_hash` (1 to change). If it shows `No changes`, the build step was skipped and `build/bootstrap` is still the old binary.
+
+Then run step 6 again. The first request starts a new execution environment, so the function log shows a new stream and a new `INIT_START`.
 
 <details>
 <summary>Sample output</summary>
 
-After `/health` gained `"version":"v2"`:
-
 ```text
+  ~ resource "aws_lambda_function" "this" {
+        id                             = "lesson13-dev"
+      ~ last_modified                  = "2026-10-23T15:09:56.133+0000" -> (known after apply)
+      ~ source_code_hash               = "o7OHuve6…" -> "eN8sF9+t…"
+        # (30 unchanged attributes hidden)
+    }
+
+Plan: 0 to add, 1 to change, 0 to destroy.
+...
+module.lambda_function.aws_lambda_function.this: Modifications complete after 7s [id=lesson13-dev]
+
+Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
+
 $ curl -i "$API_URL/health"
 HTTP/2 200
 content-type: application/json
+content-length: 30
 
 {"status":"ok","version":"v2"}
 ```
 
+The API URL and function name do not change, so clients need no update.
+
 </details>
+
+To undo the example, revert both files and repeat this step.
 
 ## 8. Cleanup
 
@@ -295,6 +332,25 @@ terraform -chdir=terraform/environments/dev state list   # expect empty
 ```
 
 Destroy removes the function, API, role and both log groups. The state bucket stays, and costs cents per month. Keep it to redeploy later, or remove it in step 9.
+
+<details>
+<summary>Sample output</summary>
+
+Terraform removes the resources that depend on others first: routes, permission and stage, then the integration, API and function, and the IAM role last. `state list` prints nothing.
+
+```text
+Plan: 0 to add, 0 to change, 12 to destroy.
+...
+module.lambda_function.aws_lambda_function.this: Destruction complete after 5s
+module.lambda_function.aws_iam_role.this: Destruction complete after 1s
+
+Destroy complete! Resources: 12 destroyed.
+
+$ terraform -chdir=terraform/environments/dev state list
+$
+```
+
+</details>
 
 ## 9. Optional: remove the state bucket
 

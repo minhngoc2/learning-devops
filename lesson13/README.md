@@ -48,9 +48,13 @@ Terraform creates 6 resources in `bootstrap` (once) and 12 in `environments/dev`
 | TFLint (Terraform + AWS rulesets) | No issues |
 | Checkov | 32 passed, 0 failed |
 | Apply (dev stack) | 12 added, 0 changed, 0 destroyed |
-| Live HTTPS checks | `200`, `200`, `400` and `404`, as expected |
-| Code release | Only the function updated; new body live |
-| Cold start / warm | 60 ms init, 62 ms billed / 2 ms billed, 23 MB of 128 MB used |
+| Live HTTPS checks | `200`, `200`, `200`, `400`, `404`, as expected |
+| Direct `lambda invoke` | `200` with `{"status":"ok"}`, no API Gateway involved |
+| Code release | 0 added, 1 changed (only `source_code_hash`), done in 7 s; same URL now serves the new body |
+| Cold start | 60 ms init, 70 ms billed, 305 ms end to end at API Gateway |
+| Warm request | 1–2 ms in Lambda, 2 ms billed, 15–35 ms end to end; 23 MB of 128 MB used |
+| Rollback | Same 1-change update; the hash matched the first deploy exactly |
+| Cleanup | 12 destroyed, `state list` empty; state bucket kept |
 
 > [!TIP]
 > Full commands and sample output, including both log groups, are in the [quickstart](quickstart.md).
@@ -61,7 +65,10 @@ Terraform creates 6 resources in `bootstrap` (once) and 12 in `environments/dev`
 > `terraform validate` and the mocked `terraform test` caught typos that looked fine at a glance, such as `apigateway.amazgnaws.com` and a log group missing its leading `/`. They failed before anything reached AWS.
 
 - **`exec format error` on a Mac is a good sign.** It means the binary really was built for Lambda's Linux/arm64.
-- **Unmatched routes never reach Lambda.** API Gateway answers them with a 404, and in this setup they did not show up in the access log either.
+- **Unmatched routes never reach Lambda.** API Gateway answers them with `{"message":"Not Found"}`, and in this setup they did not show up in the access log either. The function's own `route not found` reply is only reachable with `aws lambda invoke`.
+- **A release is one in-place update.** Terraform hashes the zip, so a rebuilt binary changes only `source_code_hash`. The URL, role and routes stay put. If the plan says `No changes`, the build was skipped.
+- **One request ID ties both logs together.** `requestId` in the access log equals `request_id` in the function log, which is how you follow a single request.
+- **Empty shell variables give confusing errors.** In a new terminal, an unset `REGION` turns into `Invalid endpoint: https://lambda..amazonaws.com`. Set `API_URL` and `REGION` again before running the checks.
 - **The state bucket outlives the stack.** `destroy` on dev leaves it in place on purpose; removing it is a separate, deliberate step.
 
 > [!CAUTION]
