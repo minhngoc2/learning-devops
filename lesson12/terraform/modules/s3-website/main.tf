@@ -29,3 +29,19 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "website" {
     }
   }
 }
+
+# Uploads interrupted mid-way leave invisible, billed parts; remove them after a week.
+resource "aws_s3_bucket_lifecycle_configuration" "website" {
+  bucket = aws_s3_bucket.website.id
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}

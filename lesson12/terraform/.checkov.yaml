@@ -1,0 +1,19 @@
+# Accepted findings for this disposable learning lab (a public static site with no user data).
+# Each is a production gap in the lesson 12 guide; remove the skip when you close the gap.
+# Run: uvx checkov --config-file terraform/.checkov.yaml -d terraform   (from lesson12/)
+framework:
+  - terraform
+compact: true
+skip-check:
+  - CKV_AWS_18    # S3 access logging: CloudFront is the only reader; no log bucket in the lab
+  - CKV_AWS_21    # S3 versioning: every release is rebuilt from git; versions would only add storage cost
+  - CKV_AWS_144   # Cross-region replication: a rebuildable static site needs no second copy
+  - CKV_AWS_145   # KMS default encryption: SSE-S3 (AES256) is enabled; CloudFront OAC with SSE-KMS needs extra key policy
+  - CKV2_AWS_62   # S3 event notifications: nothing consumes upload events
+  - CKV_AWS_86    # CloudFront access logs: no log bucket in the lab
+  - CKV_AWS_68    # WAF: extra monthly cost; public static content only
+  - CKV2_AWS_47   # WAF Log4j rule: no WAF attached (see CKV_AWS_68); no Java backend
+  - CKV_AWS_174   # TLS 1.2 minimum: the default *.cloudfront.net certificate fixes the policy; needs a custom ACM certificate
+  - CKV2_AWS_42   # Custom SSL certificate: no custom domain in the lab
+  - CKV_AWS_310   # Origin failover: single-region lab bucket
+  - CKV_AWS_374   # Geo restriction: the site is meant to be reachable worldwide

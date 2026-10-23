@@ -1,11 +1,24 @@
 variable "name" {
-  description = "Unique name for CloudFront resources."
+  description = "Unique name for the OAC and cache policy (also the distribution comment)."
   type        = string
+  nullable    = false
+
+  validation {
+    # The OAC name limit (64) is the tightest of the resources that use it.
+    condition     = can(regex("^[A-Za-z0-9_-]{1,64}$", var.name))
+    error_message = "name must be 1–64 letters, digits, hyphens or underscores."
+  }
 }
 
 variable "bucket_regional_domain_name" {
-  description = "S3 REST endpoint, not an S3 website endpoint."
+  description = "S3 REST endpoint (<bucket>.s3.<region>.amazonaws.com), not an S3 website endpoint: OAC only signs REST requests."
   type        = string
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]\\.s3(\\.[a-z0-9-]+)?\\.amazonaws\\.com(\\.cn)?$", var.bucket_regional_domain_name))
+    error_message = "bucket_regional_domain_name must be an S3 REST endpoint such as my-bucket.s3.ap-southeast-1.amazonaws.com, not an s3-website endpoint."
+  }
 }
 
 variable "min_ttl" {

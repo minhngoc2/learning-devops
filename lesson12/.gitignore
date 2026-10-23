@@ -5,6 +5,10 @@
 *.tfplan
 *.tfvars
 *.tfvars.json
+*.backend.hcl
+# Opt-in remote state: copied from backend.tf.example, kept local.
+/terraform/environments/dev/backend.tf
 crash.log
 crash.*.log
 /.archify/
+/docs/

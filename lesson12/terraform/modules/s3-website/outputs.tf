@@ -1,5 +1,5 @@
 output "bucket_name" {
-  description = "Bucket to upload the contents of dist/ into."
+  description = "Bucket to upload the generated site (nuxt-app/.output/public/) into."
   value       = aws_s3_bucket.website.id
 }
 

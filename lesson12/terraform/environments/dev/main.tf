@@ -1,7 +1,7 @@
 data "aws_caller_identity" "current" {}
 
 locals {
-  name = "${var.project}-${var.environment}-${data.aws_caller_identity.current.account_id}"
+  name = "${var.project}-dev-${data.aws_caller_identity.current.account_id}"
 }
 
 module "s3_website" {

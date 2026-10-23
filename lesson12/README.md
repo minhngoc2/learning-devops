@@ -1,49 +1,55 @@
 # Lesson 12: Nuxt on private S3 and CloudFront
 
-> [!NOTE]
-> CloudFront serves the default Nuxt welcome page over HTTPS. S3 stays private, and Origin Access Control (OAC) signs CloudFront’s requests to S3.
->
-> Terraform provisions the infrastructure; pnpm generates the static files; the AWS CLI uploads them.
+A static Nuxt site served over HTTPS by CloudFront from a private S3 bucket, deployed by Terraform.
 
-- **[Start with the quickstart](quickstart.md)**
-- [App notes](nuxt-app/README.md)
-- [Cleanup](quickstart.md#5-cleanup)
+![Nuxt 4](https://img.shields.io/badge/Nuxt-4.6-00DC82?logo=nuxt&logoColor=white)
+![Terraform 1.10+](https://img.shields.io/badge/Terraform-%E2%89%A5%201.10-7B42BC?logo=terraform&logoColor=white)
+![terraform test 8/8](https://img.shields.io/badge/terraform%20test-8%2F8-brightgreen)
+![checkov 22/22](https://img.shields.io/badge/checkov-22%2F22-brightgreen)
+
+> [!NOTE]
+> No application server runs in AWS. pnpm generates the static files locally, the AWS CLI uploads them, and Origin Access Control (OAC) lets only CloudFront read the private bucket.
+
+- **[Quickstart](quickstart.md)**: run locally, deploy, publish, verify, cleanup
+- [App notes](nuxt-app/README.md) · Modules: [s3-website](terraform/modules/s3-website/README.md) · [cloudfront-spa](terraform/modules/cloudfront-spa/README.md)
 
 ## Architecture
 
-**Browser → CloudFront → Private S3**
-
-Nuxt generates `nuxt-app/.output/public/` locally. CloudFront serves the uploaded files; no application server runs in AWS.
+**Browser → CloudFront (HTTPS) → Private S3 (via OAC)**
 
 ![Nuxt architecture showing CloudFront delivery, private S3, OAC, caching, and storage controls](diagrams/architecture.png)
 
-**Routing:** Only `/` maps to `index.html`. Nested page URLs need a CloudFront rewrite.
+- **CloudFront:** Redirects HTTP to HTTPS, caches assets, and adds managed security headers.
+- **S3:** Private bucket; anonymous requests get `403`. Abandoned multipart uploads expire after 7 days.
+- **Caching:** HTML and stable files use `no-cache`; fingerprinted `/_nuxt/` assets are cached for a year as immutable.
+- **Routing:** Only `/` maps to `index.html`. Nested page URLs need a CloudFront rewrite.
 
-## Deployment evidence
-
-**Recorded:** October 20, 2026 · **Nuxt:** 4.6.2 · **Region:** `ap-southeast-1`
+## Results
 
 | Check | Result |
 | --- | --- |
-| Terraform apply | 8 added, 0 changed, 0 destroyed |
+| `terraform test` (mocked AWS) | 8 passed |
+| TFLint (Terraform + AWS rulesets) | No issues |
+| Checkov | 22 passed, 0 failed |
+| Apply | 8 added (a fresh apply now creates 9) |
 | CloudFront website | Default Nuxt welcome page loaded |
 | HTTPS `/` | `200`, HTML, `Cache-Control: no-cache` |
 | HTTP `/` | `301` redirect to HTTPS |
 | Anonymous S3 access | `403 Forbidden` |
 
-Account and resource identifiers are masked.
+The live rows were recorded on October 20, 2026 (Nuxt 4.6.2, `ap-southeast-1`), before the October 22 Terraform review added the lifecycle rule and security-headers policy. The static checks cover the current code.
 
-### Nuxt website
+> [!TIP]
+> Commands, sample output and screenshots are in the [quickstart](quickstart.md).
 
-![Nuxt welcome page served through CloudFront](evidence/website.png)
+## Lessons learned
 
-### CloudFront origin
+> [!IMPORTANT]
+> Upload order matters: fingerprinted assets first, HTML last. Otherwise a visitor can load new HTML that points to assets not uploaded yet.
 
-![CloudFront distribution with an S3 origin; identifiers masked](evidence/cloudfront-redacted.png)
-
-### S3 static files
-
-![Generated Nuxt files in S3; bucket name masked](evidence/s3-objects-redacted.png)
+- **S3 stays private.** OAC signs CloudFront's requests, so the bucket never needs public access.
+- **Cache by file type.** Immutable for fingerprinted assets, `no-cache` for HTML and stable files.
+- **Static hosting has no router.** Deep links need a CloudFront rewrite to work.
 
 > [!CAUTION]
-> AWS resources incur charges until removed. Follow the [cleanup steps](quickstart.md#5-cleanup) when finished. The dev example enables `force_destroy`, so destroying the bucket permanently deletes its contents.
+> AWS resources incur charges until removed. The dev example sets `force_destroy`, so destroying the bucket permanently deletes its contents. Follow the [cleanup steps](quickstart.md#5-cleanup).

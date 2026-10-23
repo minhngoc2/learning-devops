@@ -27,6 +27,11 @@ resource "aws_cloudfront_cache_policy" "website" {
   }
 }
 
+# AWS-managed policy: adds HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy and X-XSS-Protection.
+data "aws_cloudfront_response_headers_policy" "security" {
+  name = "Managed-SecurityHeadersPolicy"
+}
+
 resource "aws_cloudfront_distribution" "website" {
   enabled             = true
   default_root_object = "index.html"
@@ -39,12 +44,13 @@ resource "aws_cloudfront_distribution" "website" {
   }
 
   default_cache_behavior {
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
-    target_origin_id       = "s3-website"
-    cache_policy_id        = aws_cloudfront_cache_policy.website.id
-    viewer_protocol_policy = "redirect-to-https"
-    compress               = true
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    target_origin_id           = "s3-website"
+    cache_policy_id            = aws_cloudfront_cache_policy.website.id
+    response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security.id
+    viewer_protocol_policy     = "redirect-to-https"
+    compress                   = true
   }
 
   restrictions {

@@ -1,0 +1,5 @@
+# Optional remote state. Copy to backend.tf (gitignored) to keep this root's state in the
+# lesson10-11 bootstrap bucket instead of the local terraform.tfstate. See quickstart.md.
+terraform {
+  backend "s3" {}
+}
