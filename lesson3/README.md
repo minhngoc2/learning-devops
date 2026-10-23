@@ -1,16 +1,19 @@
 # Bài 3 — Bash script kiểm tra dịch vụ
 
-[Về trang tổng quan](../README.md)
+Script Bash kiểm tra `nginx` và `ssh` có đang chạy không, và tô màu kết quả.
 
-Script: [health_check.sh](health_check.sh)
+[Về trang tổng quan](../README.md) · Script: [health_check.sh](health_check.sh)
 
+> [!NOTE]
 > Bài này cần chạy trên Linux sử dụng systemd.
 
-- Khai báo hai dịch vụ: `services=("nginx" "ssh")`.
-- Dùng vòng lặp và `systemctl is-active --quiet "$svc"` để kiểm tra trạng thái.
-- Dùng `if/else` và mã màu ANSI để phân biệt dịch vụ đang chạy hoặc đã dừng.
+## Cách hoạt động
 
-`systemctl is-active --quiet` không in kết quả; exit code `0` nghĩa là dịch vụ đang chạy, các giá trị khác `0` nghĩa là dịch vụ không hoạt động.
+- Khai báo hai dịch vụ: `services=("nginx" "ssh")`.
+- Lặp qua từng dịch vụ và kiểm tra bằng `systemctl is-active --quiet "$svc"`.
+- Dùng `if/else` và mã màu ANSI: đỏ khi dịch vụ dừng, xanh khi đang chạy.
+
+`systemctl is-active --quiet` không in gì; exit code `0` nghĩa là dịch vụ đang chạy, khác `0` nghĩa là không hoạt động.
 
 ## Chạy
 
@@ -31,6 +34,5 @@ $ ./lesson3/health_check.sh
 [OK] ssh is running
 ```
 
-Script hiển thị cảnh báo bằng màu đỏ và trạng thái hoạt động bằng màu xanh.
-
+> [!TIP]
 > Trên RHEL/CentOS, dịch vụ SSH có tên `sshd`; hãy thay `ssh` trong mảng `services`.
