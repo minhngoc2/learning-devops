@@ -15,25 +15,16 @@ A Go JSON API on AWS Lambda with a public HTTPS URL from API Gateway, deployed b
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  client([Client]) -->|HTTPS| apigw[API Gateway<br/>HTTP API]
-  apigw -->|payload v2.0| fn[Lambda<br/>Go, arm64]
-  apigw -. access logs .-> cw[(CloudWatch Logs)]
-  fn -. function logs .-> cw
-  role[IAM execution role] -. logs only .- fn
+**Client → API Gateway (HTTP API) → Lambda (Go, `provided.al2023`, arm64) → CloudWatch Logs**
 
-  subgraph tf [Terraform]
-    boot[bootstrap<br/>local state] -->|creates| s3[(S3 state bucket<br/>lesson13-tfstate-*)]
-    dev[environments/dev] -->|state + lock| s3
-  end
-  dev -. deploys .-> apigw
-```
+![Lesson 13 architecture: client to API Gateway to Lambda inside AWS ap-southeast-1 with function and access logs, Lambda permission and execution role; below, laptop builds the zip, the Terraform dev root applies 12 resources and keeps state in the S3 bucket that the bootstrap root creates once](diagrams/architecture.png)
 
 - **API Gateway:** Handles HTTPS, matches 3 routes, throttles requests (10 per second, bursts of 20), and writes JSON access logs.
 - **Lambda:** Runs the Go `bootstrap` binary (128 MB, 10 s timeout) and routes on `RouteKey`.
 - **IAM:** The function can only write logs, and only this API can call it.
 - **State:** A private, versioned, encrypted, HTTPS-only bucket that can't be destroyed by accident. Old versions expire after 90 days.
+
+Diagram source: [`diagrams/source/architecture.json`](diagrams/source/architecture.json) (Archify).
 
 Terraform creates 6 resources in `bootstrap` (once) and 12 in `environments/dev`.
 

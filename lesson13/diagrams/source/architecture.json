@@ -1,0 +1,352 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Lesson 13: Go on Lambda behind API Gateway",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "output": "architecture.html",
+    "views": [
+      {
+        "id": "request",
+        "label": "Request path",
+        "focus": [
+          "client",
+          "apigw",
+          "lambda",
+          "fnlogs",
+          "accesslogs"
+        ],
+        "note": "HTTPS in, AWS_PROXY invoke with payload 2.0, JSON back; both log groups record the request."
+      },
+      {
+        "id": "trust",
+        "label": "Two directions of trust",
+        "focus": [
+          "permission",
+          "apigw",
+          "lambda",
+          "role"
+        ],
+        "note": "The resource policy lets only this API invoke the function; the execution role lets the function write logs, nothing else."
+      },
+      {
+        "id": "deploy",
+        "label": "Build and deploy",
+        "focus": [
+          "laptop",
+          "zip",
+          "terraform",
+          "state",
+          "bootstrap",
+          "lambda"
+        ],
+        "note": "Bootstrap creates the state bucket once; then build, zip and apply. A new zip hash updates only the function code."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "permission",
+      "type": "security",
+      "label": "Lambda permission",
+      "sublabel": "apigateway.amazonaws.com / this API only",
+      "pos": [
+        680,
+        40
+      ],
+      "size": [
+        240,
+        72
+      ]
+    },
+    {
+      "id": "role",
+      "type": "security",
+      "label": "Execution role",
+      "sublabel": "AWSLambdaBasicExecutionRole",
+      "pos": [
+        1020,
+        40
+      ],
+      "size": [
+        200,
+        72
+      ]
+    },
+    {
+      "id": "client",
+      "type": "external",
+      "label": "Client",
+      "sublabel": "curl / browser",
+      "pos": [
+        40,
+        190
+      ],
+      "size": [
+        170,
+        72
+      ]
+    },
+    {
+      "id": "apigw",
+      "type": "frontend",
+      "label": "API Gateway HTTP API",
+      "sublabel": "$default stage / 10 rps, burst 20",
+      "pos": [
+        340,
+        190
+      ],
+      "size": [
+        240,
+        72
+      ],
+      "tag": "3 routes, else 404"
+    },
+    {
+      "id": "lambda",
+      "type": "backend",
+      "label": "Lambda lesson13-dev",
+      "sublabel": "Go bootstrap / al2023 arm64",
+      "pos": [
+        680,
+        190
+      ],
+      "size": [
+        240,
+        72
+      ],
+      "tag": "128 MB / 10 s"
+    },
+    {
+      "id": "fnlogs",
+      "type": "database",
+      "label": "Function logs",
+      "sublabel": "/aws/lambda/lesson13-dev / 7 d",
+      "pos": [
+        1020,
+        190
+      ],
+      "size": [
+        200,
+        72
+      ]
+    },
+    {
+      "id": "accesslogs",
+      "type": "database",
+      "label": "API access logs",
+      "sublabel": "/aws/apigateway/lesson13-dev / 7 d",
+      "pos": [
+        340,
+        350
+      ],
+      "size": [
+        240,
+        72
+      ]
+    },
+    {
+      "id": "laptop",
+      "type": "external",
+      "label": "Developer laptop",
+      "sublabel": "go test / go build",
+      "pos": [
+        40,
+        510
+      ],
+      "size": [
+        170,
+        72
+      ]
+    },
+    {
+      "id": "zip",
+      "type": "cloud",
+      "label": "build/function.zip",
+      "sublabel": "data.archive_file / hash",
+      "pos": [
+        340,
+        510
+      ],
+      "size": [
+        240,
+        72
+      ]
+    },
+    {
+      "id": "terraform",
+      "type": "cloud",
+      "label": "Terraform dev root",
+      "sublabel": "lambda-function + api-gateway",
+      "pos": [
+        680,
+        510
+      ],
+      "size": [
+        240,
+        72
+      ]
+    },
+    {
+      "id": "state",
+      "type": "database",
+      "label": "S3 state bucket",
+      "sublabel": "lesson13-tfstate-* / locked",
+      "pos": [
+        1020,
+        510
+      ],
+      "size": [
+        200,
+        72
+      ]
+    },
+    {
+      "id": "bootstrap",
+      "type": "cloud",
+      "label": "Terraform bootstrap",
+      "sublabel": "run once / local state",
+      "pos": [
+        1020,
+        650
+      ],
+      "size": [
+        200,
+        72
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "client-api",
+      "from": "client",
+      "to": "apigw",
+      "label": "HTTPS request",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-lambda",
+      "from": "apigw",
+      "to": "lambda",
+      "label": "AWS_PROXY 2.0",
+      "variant": "emphasis"
+    },
+    {
+      "id": "lambda-logs",
+      "from": "lambda",
+      "to": "fnlogs",
+      "label": "stdout JSON",
+      "variant": "dashed"
+    },
+    {
+      "id": "api-access",
+      "from": "apigw",
+      "to": "accesslogs",
+      "label": "one line / request",
+      "variant": "dashed"
+    },
+    {
+      "id": "perm-lambda",
+      "from": "permission",
+      "to": "lambda",
+      "label": "allows invoke",
+      "variant": "security"
+    },
+    {
+      "id": "lambda-role",
+      "from": "lambda",
+      "to": "role",
+      "label": "assumes",
+      "variant": "security"
+    },
+    {
+      "id": "laptop-zip",
+      "from": "laptop",
+      "to": "zip",
+      "label": "build bootstrap",
+      "variant": "default"
+    },
+    {
+      "id": "zip-tf",
+      "from": "zip",
+      "to": "terraform",
+      "label": "zip hash",
+      "variant": "default"
+    },
+    {
+      "id": "tf-state",
+      "from": "terraform",
+      "to": "state",
+      "label": "state + lock",
+      "variant": "dashed"
+    },
+    {
+      "id": "tf-lambda",
+      "from": "terraform",
+      "to": "lambda",
+      "label": "apply: 12 resources",
+      "variant": "default"
+    },
+    {
+      "id": "boot-state",
+      "from": "bootstrap",
+      "to": "state",
+      "label": "creates once",
+      "variant": "default"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "AWS ap-southeast-1 / no VPC",
+      "wraps": [
+        "permission",
+        "role",
+        "apigw",
+        "lambda",
+        "fnlogs",
+        "accesslogs"
+      ],
+      "pad": 24
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Who answers a request",
+      "items": [
+        "Unlisted route: API Gateway returns 404 {\"message\":\"Not Found\"}; Lambda never runs.",
+        "Over 10 rps (burst 20): API Gateway returns 429 before invoking.",
+        "Listed route: the Go handler switches on RouteKey and returns 200, 400 (bad /echo body) or its own 404.",
+        "Crash or timeout (10 s): API Gateway returns 500."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Two directions of trust",
+      "items": [
+        "Who may CALL the function: the Lambda permission, principal apigateway.amazonaws.com, source_arn = this API's execution_arn/*/*.",
+        "What the function may DO: its execution role trusts lambda.amazonaws.com and only has AWSLambdaBasicExecutionRole (write logs)."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Build, deploy, release",
+      "items": [
+        "terraform/bootstrap (local state) runs once and creates the lesson's own S3 state bucket via modules/state-bucket.",
+        "GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc produces build/bootstrap.",
+        "data.archive_file zips it with a fixed mode; the zip hash is the code version.",
+        "terraform apply creates 12 resources the first time; after a rebuild it updates only the function code."
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Scope of this drawing",
+      "items": [
+        "Drawn from the lesson13 Terraform and Go source; not a live AWS inventory.",
+        "The dev root keeps state in S3 with S3-native locking (use_lockfile); the bucket is versioned, encrypted, HTTPS-only and protected by prevent_destroy."
+      ]
+    }
+  ]
+}
