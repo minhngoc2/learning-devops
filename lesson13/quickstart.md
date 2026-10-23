@@ -12,10 +12,16 @@ aws sts get-caller-identity
 
 The `bootstrap` root keeps its own state **locally** (the bucket can't store the state that creates it) and creates `lesson13-tfstate-<account-id>-<region>`.
 
+Copy the variables file and adjust it if needed. Change `aws_region` to use another region, or `project` to get a different bucket name. The copy is git-ignored.
+
+```sh
+cp terraform/bootstrap/bootstrap.tfvars.example terraform/bootstrap/bootstrap.tfvars
+```
+
 ```sh
 terraform -chdir=terraform/bootstrap init
 terraform -chdir=terraform/bootstrap test
-terraform -chdir=terraform/bootstrap plan -out=bootstrap.tfplan
+terraform -chdir=terraform/bootstrap plan -var-file=bootstrap.tfvars -out=bootstrap.tfplan
 terraform -chdir=terraform/bootstrap apply bootstrap.tfplan
 terraform -chdir=terraform/bootstrap output -raw state_bucket
 ```
