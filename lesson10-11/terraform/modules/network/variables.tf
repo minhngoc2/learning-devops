@@ -4,12 +4,12 @@ variable "name" {
 }
 
 variable "cidr" {
-  description = "VPC CIDR block (a /16; subnets are carved as /24s)."
+  description = "VPC IPv4 CIDR block; must be a /16 because subnets are carved as /24s (public x.x.1-10.0, private x.x.11-20.0)."
   type        = string
 
   validation {
-    condition     = can(cidrhost(var.cidr, 0))
-    error_message = "cidr must be a valid IPv4 CIDR block."
+    condition     = can(cidrnetmask(var.cidr)) && endswith(var.cidr, "/16") && try(cidrsubnet(var.cidr, 0, 0) == var.cidr, false)
+    error_message = "cidr must be an IPv4 /16 network address (no host bits), e.g. 10.0.0.0/16."
   }
 }
 
@@ -18,7 +18,9 @@ variable "azs" {
   type        = list(string)
 
   validation {
-    condition     = length(var.azs) >= 2
-    error_message = "At least two AZs are required for an RDS subnet group."
+    # Public subnets use /24 indexes 1..n and private 11..n+10, so more than 10 AZs would overlap.
+    condition     = length(distinct(var.azs)) == length(var.azs) && length(var.azs) >= 2 && length(var.azs) <= 10
+    error_message = "Provide 2–10 distinct AZs (RDS needs two; more than 10 would overlap the private /24 range)."
   }
+  nullable = false
 }

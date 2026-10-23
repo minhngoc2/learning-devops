@@ -1,0 +1,6 @@
+image_tag    = "v1"
+allowed_cidr = "<your-public-ip>/32" # replace before planning; invalid until edited
+
+# Set only for a deliberate teardown, apply that change, then plan destroy.
+# db_deletion_protection   = false
+# final_snapshot_identifier = "lesson10-11-staging-final-YYYYMMDD-HHMMSS"

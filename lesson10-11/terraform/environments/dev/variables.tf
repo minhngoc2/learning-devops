@@ -10,21 +10,28 @@ variable "project" {
   default     = "lesson10-11"
 }
 
-variable "environment" {
-  description = "Environment name."
-  type        = string
-  default     = "dev"
+variable "azs" {
+  description = "Standard AZs in aws_region (the network module takes 2-10), pinned so subnets never move if AWS reports a zone as impaired. Change together with aws_region."
+  type        = list(string)
+  default     = ["ap-southeast-1a", "ap-southeast-1b"]
+  nullable    = false
 
   validation {
-    condition     = contains(["dev", "staging", "prod"], var.environment)
-    error_message = "environment must be dev, staging, or prod."
+    # Region code plus one letter: rejects Local/Wavelength Zones (e.g. us-east-1-bos-1a), which RDS subnet groups cannot use.
+    condition     = alltrue([for az in var.azs : can(regex("^${var.aws_region}[a-z]$", az))])
+    error_message = "azs must be standard zones in aws_region, e.g. [\"ap-southeast-1a\", \"ap-southeast-1b\"]."
   }
 }
 
 variable "vpc_cidr" {
-  description = "VPC CIDR block."
+  description = "VPC IPv4 /16; the network module carves /24 subnets."
   type        = string
   default     = "10.0.0.0/16"
+
+  validation {
+    condition     = can(cidrnetmask(var.vpc_cidr)) && endswith(var.vpc_cidr, "/16")
+    error_message = "Use an IPv4 /16; the network module carves /24 subnets."
+  }
 }
 
 variable "image_tag" {
@@ -39,7 +46,7 @@ variable "allowed_cidr" {
   default     = "0.0.0.0/0"
 
   validation {
-    condition     = can(cidrhost(var.allowed_cidr, 0))
+    condition     = can(cidrnetmask(var.allowed_cidr)) # cidrnetmask rejects IPv6, which cidr_ipv4 cannot take
     error_message = "allowed_cidr must be a valid IPv4 CIDR block."
   }
 }

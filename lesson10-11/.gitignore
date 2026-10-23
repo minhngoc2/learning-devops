@@ -4,6 +4,7 @@
 *.md
 !/README.md
 !/quickstart.md
+!/terraform/modules/*/README.md
 /architecture.*
 /build_arch*.py
 

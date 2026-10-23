@@ -1,0 +1,301 @@
+{
+ "schema_version": 1,
+ "diagram_type": "architecture",
+ "meta": {
+  "title": "Dev architecture: runtime, startup and deployment (after Terraform review)",
+  "locale": "en",
+  "quality_profile": "showcase",
+  "output": "diagrams/dev-architecture.html",
+  "views": [
+   {
+    "id": "request",
+    "label": "Request path",
+    "focus": [
+     "client",
+     "igw",
+     "api",
+     "db"
+    ],
+    "note": "Follow HTTP ingress, permitted security-group hops, then private SQL over TLS."
+   },
+   {
+    "id": "startup",
+    "label": "Startup and logs",
+    "focus": [
+     "api",
+     "ecr",
+     "secret",
+     "logs"
+    ],
+    "note": "Execution role pulls images, injects DB_PASSWORD and delivers awslogs through public endpoints via IGW."
+   },
+   {
+    "id": "deployment",
+    "label": "Deploy and state",
+    "focus": [
+     "developer",
+     "state",
+     "ecr",
+     "api"
+    ],
+    "note": "Bootstrap owns the bucket; dev owns its resources and separate S3 state key. Push the image before full apply."
+   }
+  ]
+ },
+ "components": [
+  {
+   "id": "state",
+   "type": "database",
+   "label": "S3 Terraform state",
+   "sublabel": "versioned / lock / 90-day history",
+   "pos": [
+    40,
+    40
+   ],
+   "size": [
+    196,
+    72
+   ]
+  },
+  {
+   "id": "developer",
+   "type": "external",
+   "label": "Developer laptop",
+   "sublabel": "Terraform / Docker ARM64",
+   "pos": [
+    360,
+    40
+   ],
+   "size": [
+    196,
+    72
+   ]
+  },
+  {
+   "id": "ecr",
+   "type": "cloud",
+   "label": "Dev ECR",
+   "sublabel": "immutable image tags",
+   "pos": [
+    680,
+    40
+   ],
+   "size": [
+    196,
+    72
+   ]
+  },
+  {
+   "id": "secret",
+   "type": "security",
+   "label": "Secrets Manager",
+   "sublabel": "RDS-managed password",
+   "pos": [
+    1040,
+    40
+   ],
+   "size": [
+    196,
+    72
+   ]
+  },
+  {
+   "id": "client",
+   "type": "external",
+   "label": "API client",
+   "sublabel": "allowed_cidr / HTTP",
+   "pos": [
+    40,
+    320
+   ],
+   "size": [
+    196,
+    72
+   ]
+  },
+  {
+   "id": "igw",
+   "type": "cloud",
+   "label": "Internet Gateway",
+   "sublabel": "public route 0.0.0.0/0",
+   "pos": [
+    360,
+    320
+   ],
+   "size": [
+    196,
+    72
+   ]
+  },
+  {
+   "id": "api",
+   "type": "backend",
+   "label": "Go API / Fargate",
+   "sublabel": "ARM64 / desired count 1",
+   "pos": [
+    680,
+    320
+   ],
+   "size": [
+    196,
+    72
+   ],
+   "tag": "public IP :8080"
+  },
+  {
+   "id": "db",
+   "type": "database",
+   "label": "Dev RDS PostgreSQL 17",
+   "sublabel": "private / Single-AZ / gp3",
+   "pos": [
+    1040,
+    320
+   ],
+   "size": [
+    196,
+    72
+   ],
+   "tag": "SG: API only :5432"
+  },
+  {
+   "id": "logs",
+   "type": "cloud",
+   "label": "CloudWatch Logs",
+   "sublabel": "/ecs/lesson10-11-dev",
+   "pos": [
+    680,
+    560
+   ],
+   "size": [
+    232,
+    72
+   ]
+  }
+ ],
+ "connections": [
+  {
+   "id": "developer-state",
+   "from": "developer",
+   "to": "state",
+   "label": "state + lock",
+   "variant": "dashed"
+  },
+  {
+   "id": "developer-ecr",
+   "from": "developer",
+   "to": "ecr",
+   "label": "push image",
+   "variant": "default"
+  },
+  {
+   "id": "api-ecr",
+   "from": "api",
+   "to": "ecr",
+   "label": "pull image via IGW",
+   "variant": "default"
+  },
+  {
+   "id": "api-secret",
+   "from": "api",
+   "to": "secret",
+   "label": "read at launch via IGW",
+   "variant": "security"
+  },
+  {
+   "id": "api-logs",
+   "from": "api",
+   "to": "logs",
+   "label": "awslogs via IGW",
+   "variant": "dashed"
+  },
+  {
+   "id": "client-igw",
+   "from": "client",
+   "to": "igw",
+   "label": "HTTP :8080",
+   "variant": "emphasis"
+  },
+  {
+   "id": "igw-api",
+   "from": "igw",
+   "to": "api",
+   "label": "task public IP",
+   "variant": "emphasis"
+  },
+  {
+   "id": "api-db",
+   "from": "api",
+   "to": "db",
+   "label": "TLS :5432",
+   "variant": "security"
+  }
+ ],
+ "boundaries": [
+  {
+   "kind": "region",
+   "label": "DEV VPC 10.0.0.0/16 · AZ 1a + 1b",
+   "wraps": [
+    "igw",
+    "api",
+    "db"
+   ],
+   "pad": 32
+  },
+  {
+   "kind": "security-group",
+   "label": "Public task subnets / API SG",
+   "wraps": [
+    "api"
+   ],
+   "pad": 16
+  },
+  {
+   "kind": "security-group",
+   "label": "Private DB subnets / DB SG",
+   "wraps": [
+    "db"
+   ],
+   "pad": 16
+  }
+ ],
+ "cards": [
+  {
+   "dot": "cyan",
+   "title": "Network placement and security",
+   "items": [
+    "VPC 10.0.0.0/16. Public /24 subnets: .1 and .2; private DB /24 subnets: .11 and .12, across two pinned AZs (var.azs).",
+    "Public route: 0.0.0.0/0 to IGW. DB subnets: VPC-local routes only. The VPC default SG is locked down (no rules), so nothing can join it by accident.",
+    "One task is placed in either public subnet; API SG admits allowed_cidr on 8080. Default allowed_cidr is 0.0.0.0/0."
+   ]
+  },
+  {
+   "dot": "rose",
+   "title": "Execution role and startup dependencies",
+   "items": [
+    "Fargate uses the execution role for ECR image pulls, Secrets Manager GetSecretValue and CloudWatch Logs. No application task role is configured.",
+    "Image pulls, secret reads and log delivery use public AWS endpoints via task public IPs and IGW. No NAT gateway or VPC endpoints.",
+    "DB_PASSWORD is injected at launch; rotate then replace tasks. The startup SQL/schema gate must pass before the API listens. Runtime node includes ECS-managed setup."
+   ]
+  },
+  {
+   "dot": "emerald",
+   "title": "Deployment and state ownership",
+   "items": [
+    "Bootstrap uses local state and creates the protected S3 state bucket; old state versions expire after 90 days. Dev writes lesson10-11/dev/terraform.tfstate with use_lockfile=true.",
+    "Create ECR first; build/push ARM64 image to lesson10-11-api; apply the environment root. Circuit breaker enables rollback.",
+    "ECS container probe uses /health (process only); operator checks /ready (DB ping). Discover the new public IP after replacement.",
+    "Plan-time validation rejects a non-/16 or IPv6 VPC, IPv6 allowed_cidr, invalid Fargate cpu/memory pairs, bad ports and over-long names."
+   ]
+  },
+  {
+   "dot": "amber",
+   "title": "Data lifecycle and evidence",
+   "items": [
+    "DB backups: disabled; deletion protection false; final snapshot skipped. ECR force_delete=true.",
+    "RDS takes automatic minor upgrades and copies tags to snapshots.",
+    "HTTP only; no application authentication. RDS is one Single-AZ instance, not two database replicas.",
+    "Configured defaults from the working tree after the 2026-10-22 Terraform review, not live AWS inventory; the stack is destroyed."
+   ]
+  }
+ ]
+}

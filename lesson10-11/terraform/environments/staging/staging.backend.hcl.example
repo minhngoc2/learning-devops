@@ -1,0 +1,5 @@
+bucket       = "lesson10-11-tfstate-<account-id>-ap-southeast-1"
+key          = "lesson10-11/staging/terraform.tfstate"
+region       = "ap-southeast-1"
+encrypt      = true
+use_lockfile = true

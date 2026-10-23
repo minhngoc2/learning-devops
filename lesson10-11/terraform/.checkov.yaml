@@ -1,0 +1,39 @@
+# Accepted findings for this learning lab (dev + staging, unauthenticated HTTP API).
+# Each is a deliberate cost/simplicity choice or a production gap described in the docs;
+# remove a line when you close that gap so the scan guards it from then on.
+# Run from lesson10-11/:  uvx checkov --config-file terraform/.checkov.yaml -d terraform
+framework:
+  - terraform
+compact: true
+skip-check:
+  # ALB (staging): plain HTTP on port 80, no custom domain/certificate in this lab
+  - CKV_AWS_2    # HTTPS listener needs an ACM certificate and a domain
+  - CKV_AWS_103  # TLS 1.2 policy only applies to HTTPS listeners
+  - CKV2_AWS_20  # HTTP->HTTPS redirect needs an HTTPS listener first
+  - CKV_AWS_378  # ALB->target HTTP stays inside the VPC
+  - CKV2_AWS_28  # WAF adds cost; the ALB is restricted to allowed_cidr instead
+  - CKV_AWS_91   # ALB access logs need an extra S3 bucket; not kept for a lab
+  - CKV_AWS_150  # ALB deletion protection would block terraform destroy of the lab
+  # ECS
+  - CKV_AWS_333  # Public task IPs replace a NAT gateway (cost); inbound is SG-restricted
+  - CKV_AWS_65   # Container Insights adds CloudWatch cost
+  - CKV_AWS_158  # Log groups use CloudWatch's default encryption, not a customer KMS key
+  - CKV_AWS_338  # 7-day log retention keeps lab cost near zero
+  # RDS (dev: cheap and disposable; staging keeps backups + deletion protection via variables)
+  - CKV_AWS_133  # Dev sets backup_retention_period = 0; staging uses 7
+  - CKV_AWS_293  # Dev disables deletion protection; staging enables it (checkov cannot resolve the variable)
+  - CKV_AWS_157  # Multi-AZ doubles DB cost; multi_az input exists for production
+  - CKV_AWS_118  # Enhanced monitoring adds cost and an IAM role
+  - CKV_AWS_353  # Performance Insights not needed for a lab
+  - CKV_AWS_129  # Postgres log export to CloudWatch not enabled (cost)
+  - CKV2_AWS_30  # Query logging is a parameter-group change; out of scope
+  - CKV_AWS_161  # The app authenticates with the RDS-managed password from Secrets Manager
+  # ECR
+  - CKV_AWS_136  # Repository uses AES256 by default, not a customer KMS key
+  # VPC
+  - CKV2_AWS_11  # VPC flow logs add cost; enable for production auditing
+  # Bootstrap state bucket (versioned, private, TLS-only, AES256)
+  - CKV_AWS_18   # Access logging needs a second bucket
+  - CKV_AWS_144  # Cross-region replication is beyond a single-region lab
+  - CKV_AWS_145  # SSE-S3 (AES256) instead of a customer KMS key
+  - CKV2_AWS_62  # No event notifications are needed for state files

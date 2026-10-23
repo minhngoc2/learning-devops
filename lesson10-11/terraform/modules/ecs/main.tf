@@ -54,6 +54,7 @@ resource "aws_vpc_security_group_ingress_rule" "api" {
   from_port                    = var.container_port
   to_port                      = var.container_port
   ip_protocol                  = "tcp"
+  description                  = "Container port from the ALB security group or the allowed CIDR"
 
   lifecycle {
     precondition {
@@ -68,6 +69,7 @@ resource "aws_vpc_security_group_egress_rule" "api" {
   security_group_id = aws_security_group.api.id
   cidr_ipv4         = "0.0.0.0/0"
   ip_protocol       = "-1"
+  description       = "AWS APIs (ECR, Secrets Manager, CloudWatch) via the IGW, and RDS"
 }
 
 data "aws_region" "current" {}

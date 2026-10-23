@@ -11,6 +11,13 @@ resource "aws_vpc" "main" {
   tags                 = { Name = var.name }
 }
 
+# Every VPC gets a default security group that allows all traffic between its members.
+# Nothing here uses it; managing it with no rules removes that open default.
+resource "aws_default_security_group" "default" {
+  vpc_id = aws_vpc.main.id
+  tags   = { Name = "${var.name}-default-deny" }
+}
+
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
   tags   = { Name = var.name }

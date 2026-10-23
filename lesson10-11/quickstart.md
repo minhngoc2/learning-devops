@@ -36,7 +36,7 @@ test -f dev.backend.hcl || cp dev.backend.hcl.example dev.backend.hcl
 test -f dev.tfvars || cp dev.tfvars.example dev.tfvars
 ```
 
-Set backend `bucket` to the output and `allowed_cidr` to your public IP `/32` (default: public). Never commit local state or variable files.
+Set backend `bucket` to the output and `allowed_cidr` to your public IP `/32` (default: public). `allowed_cidr` must be an IPv4 CIDR; IPv6 is rejected at plan. Never commit local state or variable files.
 
 ## 3. Publish and deploy
 
@@ -46,19 +46,39 @@ From `terraform/environments/dev`:
 terraform init -backend-config=dev.backend.hcl
 terraform fmt -check -recursive "$LESSON_DIR/terraform"
 terraform validate
-terraform apply -target=module.ecr -var-file=dev.tfvars
+terraform test   # dev root only (3 runs); all 27: docs chapter 4 "Quality gates" loop
+# optional: lint and security scan (need TFLint / uv)
+tflint --chdir="$LESSON_DIR/terraform" --init
+tflint --chdir="$LESSON_DIR/terraform" --recursive --config="$LESSON_DIR/terraform/.tflint.hcl"
+uvx checkov --config-file "$LESSON_DIR/terraform/.checkov.yaml" -d "$LESSON_DIR/terraform"
+terraform plan -target=module.ecr -var-file=dev.tfvars -out=ecr.tfplan
+terraform apply ecr.tfplan
 REPO=$(terraform output -raw ecr_repository_url)
 
 aws ecr get-login-password --region "$AWS_REGION" \
   | docker login --username AWS --password-stdin "${REPO%%/*}"
-docker build --platform linux/arm64 -t "$REPO:v1" "$LESSON_DIR/app"
+docker buildx build --platform linux/arm64 --load -t "$REPO:v1" "$LESSON_DIR/app"
 docker push "$REPO:v1"
 
 terraform plan -var-file=dev.tfvars -out=dev.tfplan
 terraform apply dev.tfplan
 ```
 
-Updates require a new immutable image tag and matching `image_tag` in `dev.tfvars`.
+<details>
+<summary>Sample output</summary>
+
+```text
+Success! 3 passed, 0 failed.          # dev root; 27 across all roots and modules
+
+terraform scan results:
+Passed checks: 98, Failed checks: 0, Skipped checks: 0
+```
+
+`fmt` and `tflint` print nothing when there are no issues.
+
+</details>
+
+Updates require a new immutable image tag and matching `image_tag` in `dev.tfvars`. A stack deployed before the October 22, 2026 Terraform review gets a one-time non-image change on its next plan: dev 1 to add (default SG), 3 to change; bootstrap 1 to add (lifecycle rule). Staging deployed before then should be destroyed and recreated, not updated.
 
 ## 4. Verify
 
@@ -84,6 +104,19 @@ curl --fail-with-body "http://$API_IP:8080/todos"
 
 Expect `ok`, `ready`, and your saved todo.
 
+<details>
+<summary>Sample output (October 15, 2026, before the October 22 review)</summary>
+
+`/health` returned `ok` and `/ready` returned `ready`. `GET /todos` returned four saved todos:
+
+![API response showing four saved todos](evidence/dev-api-todos.png)
+
+The ECS service `lesson10-11-dev` deployed successfully, with one healthy Fargate task on task definition `lesson10-11-dev:3`:
+
+![ECS service showing a successful deployment and one healthy task](evidence/dev-ecs-service.png)
+
+</details>
+
 ## 5. Cleanup
 
 From `terraform/environments/dev`:
@@ -92,4 +125,5 @@ From `terraform/environments/dev`:
 terraform destroy -var-file=dev.tfvars
 ```
 
-**Destroy deletes dev RDS without a final snapshot and removes ECR images.** The protected bootstrap bucket remains; retain its local state.
+> [!CAUTION]
+> Destroy deletes dev RDS **without a final snapshot** and removes ECR images. The protected bootstrap bucket remains; retain its local state.

@@ -1,16 +1,12 @@
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
 locals {
-  name = "${var.project}-${var.environment}"
+  name = "${var.project}-dev"
 }
 
 module "network" {
   source = "../../modules/network"
   name   = local.name
   cidr   = var.vpc_cidr
-  azs    = slice(data.aws_availability_zones.available.names, 0, 2)
+  azs    = var.azs
 }
 
 module "ecr" {
