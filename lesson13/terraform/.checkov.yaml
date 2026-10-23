@@ -1,0 +1,21 @@
+# Accepted findings for this disposable, public learning lab. Each one is a production gap
+# listed in docs chapter 8; remove the skip when you close the gap.
+# Run: uvx checkov --config-file terraform/.checkov.yaml -d terraform   (from lesson13/)
+framework:
+  - terraform
+compact: true
+skip-check:
+  - CKV_AWS_50   # X-Ray tracing: not enabled to keep the lab minimal
+  - CKV_AWS_115  # Reserved concurrency: module supports it, dev leaves it unset (fails on low-limit accounts)
+  - CKV_AWS_116  # DLQ: only applies to asynchronous invokes; API Gateway invokes synchronously
+  - CKV_AWS_117  # VPC: the function reaches no private resources, so no VPC is needed
+  - CKV_AWS_158  # KMS for log groups: CloudWatch encrypts at rest with AWS-owned keys by default
+  - CKV_AWS_173  # KMS for env vars: Lambda encrypts them at rest by default; no secrets are stored there
+  - CKV_AWS_272  # Code signing: not used in a single-developer lab
+  - CKV_AWS_309  # Route authorization: the lab API is deliberately public (no auth)
+  - CKV_AWS_338  # 1-year log retention: 7 days keeps lab cost near zero
+  # State bucket (modules/state-bucket)
+  - CKV_AWS_18   # Access logging needs a second bucket
+  - CKV_AWS_144  # Cross-region replication is beyond a single-region lab
+  - CKV_AWS_145  # SSE-S3 (AES256) instead of a customer KMS key
+  - CKV2_AWS_62  # No event notifications are needed for state files

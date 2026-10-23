@@ -1,0 +1,5 @@
+bucket       = "lesson13-tfstate-<account-id>-ap-southeast-1" # output state_bucket of terraform/bootstrap; region must match it
+key          = "dev/terraform.tfstate"
+region       = "ap-southeast-1"
+encrypt      = true
+use_lockfile = true

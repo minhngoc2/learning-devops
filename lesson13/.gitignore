@@ -1,0 +1,22 @@
+# Local documentation and editable diagram sources.
+/docs/
+/.archify/
+*.md
+!/README.md
+!/quickstart.md
+!/terraform/modules/*/README.md
+/architecture.*
+
+# Local build artifacts.
+/build/
+.DS_Store
+.env
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
