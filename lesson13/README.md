@@ -52,8 +52,6 @@ Terraform creates 6 resources in `bootstrap` (once) and 12 in `environments/dev`
 | Code release | Only the function updated; new body live |
 | Cold start / warm | 60 ms init, 62 ms billed / 2 ms billed, 23 MB of 128 MB used |
 
-The live rows were recorded on October 23, 2026, in `ap-southeast-1`, with local state, before the S3 backend was added. The static checks cover the current code.
-
 > [!TIP]
 > Full commands and sample output, including both log groups, are in the [quickstart](quickstart.md).
 
