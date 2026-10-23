@@ -42,34 +42,18 @@ Terraform creates 6 resources in `bootstrap` (once) and 12 in `environments/dev`
 
 | Check | Result |
 | --- | --- |
-| `go test` | Pass |
-| `terraform fmt` / `validate` | Pass (bootstrap, dev, modules) |
-| `terraform test` (mocked AWS) | 12 passed: dev 7, state-bucket 3, bootstrap 2 |
-| TFLint (Terraform + AWS rulesets) | No issues |
-| Checkov | 32 passed, 0 failed |
-| Apply (dev stack) | 12 added, 0 changed, 0 destroyed |
-| Live HTTPS checks | `200`, `200`, `200`, `400`, `404`, as expected |
-| Direct `lambda invoke` | `200` with `{"status":"ok"}`, no API Gateway involved |
-| Code release | 0 added, 1 changed (only `source_code_hash`), done in 7 s; same URL now serves the new body |
-| Cold start | 60 ms init, 70 ms billed, 305 ms end to end at API Gateway |
-| Warm request | 1–2 ms in Lambda, 2 ms billed, 15–35 ms end to end; 23 MB of 128 MB used |
-| Rollback | Same 1-change update; the hash matched the first deploy exactly |
-| Cleanup | 12 destroyed, `state list` empty; state bucket kept |
-
-> [!TIP]
-> Full commands and sample output, including both log groups, are in the [quickstart](quickstart.md).
+| Static checks | `go test`, `fmt`, `validate`, TFLint pass; Checkov 32/32 |
+| `terraform test` (mocked AWS) | 12 passed |
+| Deploy | 12 resources; all live checks return the expected status |
+| Release | 1 in-place change, new code live in 7 s at the same URL |
+| Latency | Cold start 305 ms, warm 15–35 ms (2 ms billed) |
+| Cleanup | 12 destroyed; state bucket kept |
 
 ## Lessons learned
 
-> [!IMPORTANT]
-> `terraform validate` and the mocked `terraform test` caught typos that looked fine at a glance, such as `apigateway.amazgnaws.com` and a log group missing its leading `/`. They failed before anything reached AWS.
-
-- **`exec format error` on a Mac is a good sign.** It means the binary really was built for Lambda's Linux/arm64.
-- **Unmatched routes never reach Lambda.** API Gateway answers them with `{"message":"Not Found"}`, and in this setup they did not show up in the access log either. The function's own `route not found` reply is only reachable with `aws lambda invoke`.
-- **A release is one in-place update.** Terraform hashes the zip, so a rebuilt binary changes only `source_code_hash`. The URL, role and routes stay put. If the plan says `No changes`, the build was skipped.
-- **One request ID ties both logs together.** `requestId` in the access log equals `request_id` in the function log, which is how you follow a single request.
-- **Empty shell variables give confusing errors.** In a new terminal, an unset `REGION` turns into `Invalid endpoint: https://lambda..amazonaws.com`. Set `API_URL` and `REGION` again before running the checks.
-- **The state bucket outlives the stack.** `destroy` on dev leaves it in place on purpose; removing it is a separate, deliberate step.
+- **Mocked tests catch typos for free.** `validate` and `terraform test` caught a misspelled service principal before anything reached AWS.
+- **A release is just a new hash.** Rebuild the binary and only `source_code_hash` changes; no rebuild means `No changes`.
+- **Unmatched routes never reach Lambda.** API Gateway returns the 404 itself, so it isn't in the function log.
 
 > [!CAUTION]
 > The API is public with no authentication; throttling is the only protection. Costs are near zero at lab scale, but always [clean up](quickstart.md#8-cleanup), and never commit `*.tfstate` or `dev.backend.hcl`.
