@@ -1,0 +1,352 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Two VPCs — Order (Account A) and Payment (Account B)",
+    "output": "aws_two_vpc-architecture.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "order-vpc",
+        "label": "VPC-order",
+        "focus": [
+          "users",
+          "albA",
+          "order",
+          "orderdb",
+          "vpce"
+        ],
+        "note": "Team A owns everything here; there is no NAT and no route to VPC-payment."
+      },
+      {
+        "id": "privatelink",
+        "label": "PrivateLink",
+        "focus": [
+          "order",
+          "vpce",
+          "nlb",
+          "payment"
+        ],
+        "note": "One port, one direction: the endpoint ENI reaches the payment NLB over PrivateLink."
+      },
+      {
+        "id": "payment-vpc",
+        "label": "VPC-payment",
+        "focus": [
+          "users",
+          "albB",
+          "payment",
+          "paydb",
+          "nat",
+          "psp"
+        ],
+        "note": "Team B owns its ALB, NAT, database and PSP egress independently."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "users",
+      "type": "external",
+      "label": "Users (Japan)",
+      "sublabel": "Route 53 · 2 names",
+      "pos": [
+        520,
+        20
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "albA",
+      "type": "cloud",
+      "label": "ALB-A + WAF",
+      "sublabel": "order.example.jp",
+      "pos": [
+        120,
+        160
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "order",
+      "type": "backend",
+      "label": "Order Service",
+      "sublabel": "Go :8080",
+      "pos": [
+        120,
+        300
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "Team A"
+    },
+    {
+      "id": "orderdb",
+      "type": "database",
+      "label": "Order DB",
+      "sublabel": "RDS PostgreSQL :5432",
+      "pos": [
+        110,
+        440
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "vpce",
+      "type": "security",
+      "label": "Interface endpoint",
+      "sublabel": "vpce ENI :8443",
+      "pos": [
+        380,
+        300
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "albB",
+      "type": "cloud",
+      "label": "ALB-B + WAF",
+      "sublabel": "pay.example.jp",
+      "pos": [
+        900,
+        160
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "payment",
+      "type": "backend",
+      "label": "Payment Service",
+      "sublabel": "Node.js :8443",
+      "pos": [
+        900,
+        300
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "Team B"
+    },
+    {
+      "id": "nlb",
+      "type": "security",
+      "label": "Internal NLB",
+      "sublabel": "endpoint service",
+      "pos": [
+        660,
+        300
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "paydb",
+      "type": "database",
+      "label": "Payment DB",
+      "sublabel": "RDS MySQL :3306",
+      "pos": [
+        890,
+        440
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "nat",
+      "type": "cloud",
+      "label": "NAT ×2",
+      "sublabel": "one per AZ + EIP",
+      "pos": [
+        1140,
+        300
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "psp",
+      "type": "external",
+      "label": "Stripe / PayPal",
+      "sublabel": "3rd-party PSP",
+      "pos": [
+        1145,
+        20
+      ],
+      "size": [
+        150,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Account A · VPC-order 10.10.0.0/16",
+      "wraps": [
+        "albA",
+        "order",
+        "orderdb",
+        "vpce"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Account B · VPC-payment 10.20.0.0/16",
+      "wraps": [
+        "albB",
+        "payment",
+        "nlb",
+        "paydb",
+        "nat"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "users-albA",
+      "from": "users",
+      "to": "albA",
+      "label": "HTTPS :443",
+      "variant": "emphasis"
+    },
+    {
+      "id": "users-albB",
+      "from": "users",
+      "to": "albB",
+      "label": "HTTPS :443",
+      "variant": "emphasis"
+    },
+    {
+      "id": "albA-order",
+      "from": "albA",
+      "to": "order",
+      "label": ":8080",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        225,
+        262
+      ]
+    },
+    {
+      "id": "order-sql",
+      "from": "order",
+      "to": "orderdb",
+      "label": ":5432",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        225,
+        402
+      ]
+    },
+    {
+      "id": "order-vpce",
+      "from": "order",
+      "to": "vpce",
+      "label": ":8443"
+    },
+    {
+      "id": "privatelink",
+      "from": "vpce",
+      "to": "nlb",
+      "label": "PrivateLink",
+      "variant": "security"
+    },
+    {
+      "id": "nlb-payment",
+      "from": "nlb",
+      "to": "payment",
+      "label": ":8443"
+    },
+    {
+      "id": "albB-payment",
+      "from": "albB",
+      "to": "payment",
+      "label": ":8443",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1005,
+        262
+      ]
+    },
+    {
+      "id": "payment-sql",
+      "from": "payment",
+      "to": "paydb",
+      "label": ":3306",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1005,
+        402
+      ]
+    },
+    {
+      "id": "payment-nat",
+      "from": "payment",
+      "to": "nat",
+      "label": "0.0.0.0/0",
+      "variant": "dashed"
+    },
+    {
+      "id": "nat-psp",
+      "from": "nat",
+      "to": "psp",
+      "label": "HTTPS · EIP",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "orange",
+      "title": "VPC-order (Team A)",
+      "items": [
+        "10.10.0.0/16 · 2 AZs · public / app / db",
+        "No NAT: S3, ECR and Logs via VPC endpoints"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "VPC-payment (Team B)",
+      "items": [
+        "10.20.0.0/16 · 2 AZs · public / app / db",
+        "NAT per AZ for PSP egress with a fixed EIP"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Isolation",
+      "items": [
+        "No peering, no TGW: no route between VPCs",
+        "Payment sees NLB IPs, never 10.10.x.x",
+        "Shared contract: endpoint service, :8443, account A"
+      ]
+    }
+  ]
+}

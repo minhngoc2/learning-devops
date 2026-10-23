@@ -1,0 +1,320 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Main System VPC — Order & Payment (single VPC)",
+    "output": "aws_vpc_payment-architecture.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "ingress",
+        "label": "Ingress",
+        "focus": [
+          "users",
+          "waf",
+          "igw",
+          "alb",
+          "order",
+          "payment"
+        ],
+        "note": "Japan-only HTTPS through WAF and the ALB path rules into both AZs."
+      },
+      {
+        "id": "data",
+        "label": "Data tier",
+        "focus": [
+          "order",
+          "orderdb",
+          "payment",
+          "paydb"
+        ],
+        "note": "Each service reaches only its own RDS Multi-AZ database in isolated subnets."
+      },
+      {
+        "id": "egress",
+        "label": "Payment egress",
+        "focus": [
+          "payment",
+          "nat",
+          "psp"
+        ],
+        "note": "Only payment has a default route: NAT in the same AZ, then IGW with a fixed EIP."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "users",
+      "type": "external",
+      "label": "Users (Japan)",
+      "sublabel": "browser / mobile",
+      "pos": [
+        40,
+        270
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "waf",
+      "type": "security",
+      "label": "AWS WAF",
+      "sublabel": "geo-match JP",
+      "pos": [
+        40,
+        90
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "igw",
+      "type": "cloud",
+      "label": "Internet Gateway",
+      "sublabel": "igw-main",
+      "pos": [
+        290,
+        270
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "alb",
+      "type": "cloud",
+      "label": "Public ALB",
+      "sublabel": "HTTPS :443 · 1a + 1c",
+      "pos": [
+        520,
+        270
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "sg-alb"
+    },
+    {
+      "id": "nat",
+      "type": "cloud",
+      "label": "NAT ×2",
+      "sublabel": "one per AZ + EIP",
+      "pos": [
+        520,
+        450
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "order",
+      "type": "backend",
+      "label": "Order Service",
+      "sublabel": "Go :8080",
+      "pos": [
+        780,
+        150
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "Team A"
+    },
+    {
+      "id": "orderdb",
+      "type": "database",
+      "label": "Order DB",
+      "sublabel": "RDS PostgreSQL :5432",
+      "pos": [
+        1030,
+        150
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "payment",
+      "type": "backend",
+      "label": "Payment Service",
+      "sublabel": "Node.js :8443",
+      "pos": [
+        780,
+        390
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "Team B"
+    },
+    {
+      "id": "paydb",
+      "type": "database",
+      "label": "Payment DB",
+      "sublabel": "RDS MySQL :3306",
+      "pos": [
+        1030,
+        390
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "psp",
+      "type": "external",
+      "label": "Stripe / PayPal",
+      "sublabel": "3rd-party PSP",
+      "pos": [
+        290,
+        560
+      ],
+      "size": [
+        150,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "ap-northeast-1 · VPC 10.0.0.0/16",
+      "wraps": [
+        "igw",
+        "alb",
+        "nat",
+        "order",
+        "orderdb",
+        "payment",
+        "paydb"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "Team A · order-app / order-db",
+      "wraps": [
+        "order",
+        "orderdb"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "Team B · payment-app / payment-db",
+      "wraps": [
+        "payment",
+        "paydb"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "users-igw",
+      "from": "users",
+      "to": "igw",
+      "label": "HTTPS :443",
+      "variant": "emphasis"
+    },
+    {
+      "id": "igw-alb",
+      "from": "igw",
+      "to": "alb"
+    },
+    {
+      "id": "waf-alb",
+      "from": "waf",
+      "to": "alb",
+      "label": "web ACL",
+      "variant": "security"
+    },
+    {
+      "id": "alb-order",
+      "from": "alb",
+      "to": "order",
+      "label": "/orders/* :8080"
+    },
+    {
+      "id": "alb-payment",
+      "from": "alb",
+      "to": "payment",
+      "label": "/payments/* :8443"
+    },
+    {
+      "id": "order-payment",
+      "from": "order",
+      "to": "payment",
+      "label": ":8443",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        885,
+        302
+      ]
+    },
+    {
+      "id": "order-sql",
+      "from": "order",
+      "to": "orderdb",
+      "label": ":5432"
+    },
+    {
+      "id": "payment-sql",
+      "from": "payment",
+      "to": "paydb",
+      "label": ":3306"
+    },
+    {
+      "id": "payment-nat",
+      "from": "payment",
+      "to": "nat",
+      "label": "0.0.0.0/0",
+      "variant": "dashed"
+    },
+    {
+      "id": "nat-psp",
+      "from": "nat",
+      "to": "psp",
+      "label": "HTTPS via IGW · EIP",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Network",
+      "items": [
+        "2 AZs: ap-northeast-1a / 1c",
+        "public 10.0.0.0/23 · app 10.0.10.0/23, 10.0.20.0/23",
+        "db 10.0.30.0/23, 10.0.40.0/23 (no internet route)"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Routing",
+      "items": [
+        "rtb-public: 0.0.0.0/0 → IGW",
+        "rtb-app-1a/1c: 0.0.0.0/0 → NAT in same AZ",
+        "rtb-db: local only"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Guard rails",
+      "items": [
+        "SGs chain by ID: sg-alb → sg-order / sg-payment → own DB SG",
+        "NACLs are stateless: allow ephemeral 1024-65535 return traffic"
+      ]
+    }
+  ]
+}

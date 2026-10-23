@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "83ccc61d-4cfe-4cdc-9fa8-b40dba14b41d",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/kuuhakuu/repos/github.com/minhngoc2/learning-devops/lesson8/aws_two_vpc.architecture.json",
+  "output": "/Users/kuuhakuu/repos/github.com/minhngoc2/learning-devops/lesson8/aws_two_vpc-architecture.html",
+  "specification": {
+    "sha256": "16a25b2326965b7f277e2184ff7d23859924f3a8e1d3d38a577a62a043fa07fc",
+    "bytes": 6507
+  },
+  "artifact": {
+    "sha256": "fbd8f4512ec823889d1fd18515dfbc95866131307da388615b91b09a608a7663",
+    "bytes": 829168
+  }
+}

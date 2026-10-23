@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "6ddb3ae5-0693-4b97-89b1-329c7193dc51",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/kuuhakuu/repos/github.com/minhngoc2/learning-devops/lesson8/aws_vpc_payment.architecture.json",
+  "output": "/Users/kuuhakuu/repos/github.com/minhngoc2/learning-devops/lesson8/aws_vpc_payment-architecture.html",
+  "specification": {
+    "sha256": "5944ad11cb327fbcec407b4a8e4fc43c1116aa94952bade0553c6262b82ea644",
+    "bytes": 5969
+  },
+  "artifact": {
+    "sha256": "cfa54d75c9b3ce9bbf957944f7febb71b8c1ae45ca1988b92bff43b691c19005",
+    "bytes": 827628
+  }
+}
