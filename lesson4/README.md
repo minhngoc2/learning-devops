@@ -1,18 +1,21 @@
 # Bài 4 — Docker image cho ứng dụng Python
 
-[Về trang tổng quan](../README.md)
+Đóng gói một script Python đơn giản thành Docker image và chạy nó.
 
-Tệp: [Dockerfile](Dockerfile), [main.py](main.py)
+[Về trang tổng quan](../README.md) · Tệp: [Dockerfile](Dockerfile), [main.py](main.py)
+
+## Dockerfile
 
 - Dùng image `python:3.14-slim`.
 - Đặt thư mục làm việc thành `/app`.
 - Cài Poetry bằng `pip install --no-cache-dir poetry`.
-- Copy `main.py` vào image.
-- Chạy ứng dụng bằng `CMD ["python", "main.py"]`.
+- Copy `main.py` vào image và chạy bằng `CMD ["python", "main.py"]`.
 
-`--no-cache-dir` ngăn pip lưu cache trong layer, giúp image gọn hơn.
+> [!TIP]
+> `--no-cache-dir` ngăn pip lưu cache trong layer, giúp image gọn hơn.
 
-Trong bài này, Poetry chỉ được cài vào image; việc dùng Poetry để quản lý dependency được thực hành ở Bài 5–6.
+> [!NOTE]
+> Ở bài này Poetry chỉ được cài vào image; việc dùng Poetry để quản lý dependency được thực hành ở [Bài 5–6](../lesson5-6/README.md).
 
 ## Build và chạy
 
