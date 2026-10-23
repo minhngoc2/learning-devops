@@ -19,14 +19,23 @@ A Go JSON API on AWS Lambda with a public HTTPS URL from API Gateway, deployed b
 
 ![Lesson 13 architecture: client to API Gateway to Lambda inside AWS ap-southeast-1 with function and access logs, Lambda permission and execution role; below, laptop builds the zip, the Terraform dev root applies 12 resources and keeps state in the S3 bucket that the bootstrap root creates once](diagrams/architecture.png)
 
-- **API Gateway:** Handles HTTPS, matches 3 routes, throttles requests (10 per second, bursts of 20), and writes JSON access logs.
-- **Lambda:** Runs the Go `bootstrap` binary (128 MB, 10 s timeout) and routes on `RouteKey`.
-- **IAM:** The function can only write logs, and only this API can call it.
-- **State:** A private, versioned, encrypted, HTTPS-only bucket that can't be destroyed by accident. Old versions expire after 90 days.
+- **API Gateway:** HTTPS, 3 routes, throttling (10 req/s, burst 20) and JSON access logs.
+- **Lambda:** The Go `bootstrap` binary (128 MB, 10 s timeout), routing on `RouteKey`.
+- **IAM:** The function can only write logs, and only this API can invoke it.
+- **State:** A private, versioned, encrypted, HTTPS-only bucket protected from `destroy`. Old versions expire after 90 days.
 
 Diagram source: [`diagrams/source/architecture.json`](diagrams/source/architecture.json) (Archify).
 
-Terraform creates 6 resources in `bootstrap` (once) and 12 in `environments/dev`.
+## Project layout
+
+```text
+app/                      Go handler and table-driven tests
+terraform/
+├── bootstrap/            S3 state bucket (local state, run once)
+├── environments/dev/     The stack: 12 resources
+└── modules/              state-bucket · lambda-function · api-gateway
+diagrams/                 Architecture image and its source
+```
 
 ## API
 
@@ -49,11 +58,8 @@ Terraform creates 6 resources in `bootstrap` (once) and 12 in `environments/dev`
 | Latency | Cold start 305 ms, warm 15–35 ms (2 ms billed) |
 | Cleanup | 12 destroyed; state bucket kept |
 
-## Lessons learned
-
-- **Mocked tests catch typos for free.** `validate` and `terraform test` caught a misspelled service principal before anything reached AWS.
-- **A release is just a new hash.** Rebuild the binary and only `source_code_hash` changes; no rebuild means `No changes`.
-- **Unmatched routes never reach Lambda.** API Gateway returns the 404 itself, so it isn't in the function log.
+> [!IMPORTANT]
+> A release only changes `source_code_hash`, so always rebuild `build/bootstrap` before `plan`. If the plan says `No changes`, the old binary is still live.
 
 > [!CAUTION]
 > The API is public with no authentication; throttling is the only protection. Costs are near zero at lab scale, but always [clean up](quickstart.md#8-cleanup), and never commit `*.tfstate` or `dev.backend.hcl`.
