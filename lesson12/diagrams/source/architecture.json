@@ -1,0 +1,310 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Nuxt on private S3 + CloudFront (Terraform pass, Oct 22)",
+    "locale": "en",
+    "output": "architecture.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "entries": {
+        "database": {
+          "label": "Object storage"
+        },
+        "cloud": {
+          "label": "CDN / cache configuration"
+        },
+        "security": {
+          "label": "Access control configuration"
+        },
+        "frontend": {
+          "label": "Visitor browser"
+        },
+        "backend": {
+          "label": "Local build / Terraform"
+        },
+        "external": {
+          "label": "Operator publish step"
+        }
+      }
+    }
+  },
+  "components": [
+    {
+      "id": "browser",
+      "type": "frontend",
+      "label": "Visitor browser",
+      "sublabel": "Nuxt / Vue hydrates here",
+      "pos": [
+        40,
+        60
+      ],
+      "size": [
+        188,
+        80
+      ]
+    },
+    {
+      "id": "cdn",
+      "type": "cloud",
+      "label": "Amazon CloudFront",
+      "sublabel": "HTTPS redirect / GET + HEAD",
+      "tag": "global edge",
+      "pos": [
+        424,
+        60
+      ],
+      "size": [
+        224,
+        80
+      ]
+    },
+    {
+      "id": "bucket",
+      "type": "database",
+      "label": "Private S3 bucket",
+      "sublabel": "HTML + _nuxt/ + payloads",
+      "tag": "ap-southeast-1",
+      "pos": [
+        964,
+        60
+      ],
+      "size": [
+        224,
+        80
+      ]
+    },
+    {
+      "id": "cache",
+      "type": "cloud",
+      "label": "Cache + headers policies",
+      "sublabel": "TTL 0/0/1y \u00b7 security headers",
+      "pos": [
+        40,
+        328
+      ],
+      "size": [
+        224,
+        80
+      ],
+      "tag": "two policies"
+    },
+    {
+      "id": "oac",
+      "type": "security",
+      "label": "Origin Access Control",
+      "sublabel": "Always sign with SigV4",
+      "pos": [
+        424,
+        328
+      ],
+      "size": [
+        224,
+        80
+      ],
+      "tag": "origin configuration"
+    },
+    {
+      "id": "policy",
+      "type": "security",
+      "label": "S3 bucket policy",
+      "sublabel": "SourceArn = this CDN; TLS",
+      "pos": [
+        704,
+        328
+      ],
+      "size": [
+        224,
+        80
+      ],
+      "tag": "authorization rule"
+    },
+    {
+      "id": "storage_controls",
+      "type": "security",
+      "label": "S3 storage controls",
+      "sublabel": "Public block / ACLs / SSE / MPU",
+      "tag": "four Terraform resources",
+      "pos": [
+        964,
+        328
+      ],
+      "size": [
+        224,
+        80
+      ]
+    },
+    {
+      "id": "publish",
+      "type": "external",
+      "label": "AWS CLI publish",
+      "sublabel": "_nuxt \u2192 stable \u2192 HTML last",
+      "tag": "operator",
+      "pos": [
+        1324,
+        60
+      ],
+      "size": [
+        224,
+        80
+      ]
+    },
+    {
+      "id": "build",
+      "type": "backend",
+      "label": "pnpm generate",
+      "sublabel": "nuxt-app/.output/public",
+      "tag": "local",
+      "pos": [
+        1324,
+        328
+      ],
+      "size": [
+        224,
+        80
+      ]
+    },
+    {
+      "id": "terraform",
+      "type": "backend",
+      "label": "Terraform apply",
+      "sublabel": "dev root \u00b7 9 resources",
+      "tag": "s3-website + cloudfront-spa",
+      "pos": [
+        1324,
+        596
+      ],
+      "size": [
+        224,
+        80
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "AWS ap-southeast-1 / managed object storage",
+      "wraps": [
+        "bucket",
+        "policy",
+        "storage_controls"
+      ],
+      "pad": 24
+    }
+  ],
+  "connections": [
+    {
+      "id": "request",
+      "from": "browser",
+      "to": "cdn",
+      "label": "HTTPS GET",
+      "variant": "emphasis"
+    },
+    {
+      "id": "response",
+      "from": "cdn",
+      "to": "browser",
+      "label": "HTML / JS / CSS",
+      "variant": "dashed"
+    },
+    {
+      "id": "origin_read",
+      "from": "cdn",
+      "to": "bucket",
+      "label": "Signed GET: miss / stale",
+      "variant": "security"
+    },
+    {
+      "id": "origin_reply",
+      "from": "bucket",
+      "to": "cdn",
+      "label": "Object + headers",
+      "variant": "dashed"
+    },
+    {
+      "id": "cache_config",
+      "from": "cache",
+      "to": "cdn",
+      "label": "Cache key, TTL, headers"
+    },
+    {
+      "id": "signing_config",
+      "from": "oac",
+      "to": "cdn",
+      "label": "Origin signing config",
+      "variant": "security"
+    },
+    {
+      "id": "access_config",
+      "from": "policy",
+      "to": "bucket",
+      "label": "Authorize this CDN",
+      "variant": "security"
+    },
+    {
+      "id": "storage_rules",
+      "from": "storage_controls",
+      "to": "bucket",
+      "label": "Protect stored objects",
+      "variant": "security"
+    },
+    {
+      "id": "gen_files",
+      "from": "build",
+      "to": "publish",
+      "label": "Static files"
+    },
+    {
+      "id": "upload",
+      "from": "publish",
+      "to": "bucket",
+      "label": "s3 cp + Cache-Control",
+      "variant": "emphasis"
+    },
+    {
+      "id": "provision",
+      "from": "terraform",
+      "to": "storage_controls",
+      "label": "Creates 9 resources",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Request and cache flow",
+      "items": [
+        "Browser asks CloudFront over HTTPS; plain HTTP gets a 301 redirect to HTTPS. Only GET and HEAD are allowed; responses are compressed.",
+        "Fresh cached objects are served at the edge. A miss or stale object triggers a SigV4-signed request (OAC) to the private S3 REST endpoint.",
+        "The cache policy uses TTL min/default 0 and max 1 year, so S3 Cache-Control headers decide: no-cache for HTML and payloads, one-year immutable for fingerprinted _nuxt assets.",
+        "The AWS managed security-headers policy adds HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy and X-XSS-Protection to every response.",
+        "Only / maps to index.html. There is no SPA fallback: a key that does not exist returns 403 from S3 through CloudFront; nested URLs need a CloudFront rewrite."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "All nine Terraform resources",
+      "items": [
+        "1. CloudFront distribution: redirect-to-https, GET/HEAD, compression, default certificate, index.html root object.",
+        "2. Origin Access Control: always signs origin requests with SigV4.",
+        "3. Cache policy: TTL 0/0/31536000; gzip and Brotli; no cookies, headers or query strings in the cache key. (Security headers policy is AWS-managed, read as a data source.)",
+        "4. S3 bucket in ap-southeast-1; website hosting disabled.",
+        "5. Public-access block: all four blocks on.",
+        "6. Ownership controls: BucketOwnerEnforced disables ACLs.",
+        "7. Encryption: SSE-S3 (AES256) by default.",
+        "8. Lifecycle rule: abort incomplete multipart uploads after 7 days.",
+        "9. Bucket policy (dev root): CloudFront s3:GetObject only when AWS:SourceArn is this distribution; deny any request without TLS."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Build, publish, provision",
+      "items": [
+        "Terraform provisions infrastructure only; it never uploads site files. State is local by default, or in the lesson 10-11 S3 bucket if you opt in.",
+        "pnpm generate writes nuxt-app/.output/public. The AWS CLI uploads fingerprinted _nuxt assets first, stable files second, HTML last, then invalidates /* and waits.",
+        "Uploads are not atomic; avoid concurrent releases. The dev example sets force_destroy = true, so destroy deletes all objects.",
+        "Configured from source on 2026-10-22; the stack is currently destroyed. This is not a live AWS inventory."
+      ]
+    }
+  ]
+}

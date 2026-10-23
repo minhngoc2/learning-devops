@@ -17,12 +17,14 @@ A static Nuxt site served over HTTPS by CloudFront from a private S3 bucket, dep
 
 **Browser → CloudFront (HTTPS) → Private S3 (via OAC)**
 
-![Nuxt architecture showing CloudFront delivery, private S3, OAC, caching, and storage controls](diagrams/architecture.png)
+![Nuxt architecture: the visitor browser fetches over HTTPS from CloudFront, which signs requests with OAC to the private S3 bucket; cache and security-headers policies, bucket policy and storage controls; pnpm generate and the AWS CLI publish the files, and Terraform apply creates 9 resources](diagrams/architecture.png)
 
 - **CloudFront:** Redirects HTTP to HTTPS, caches assets, and adds managed security headers.
 - **S3:** Private bucket; anonymous requests get `403`. Abandoned multipart uploads expire after 7 days.
 - **Caching:** HTML and stable files use `no-cache`; fingerprinted `/_nuxt/` assets are cached for a year as immutable.
 - **Routing:** Only `/` maps to `index.html`. Nested page URLs need a CloudFront rewrite.
+
+Diagram source: [`diagrams/source/architecture.json`](diagrams/source/architecture.json) (Archify).
 
 ## Results
 
