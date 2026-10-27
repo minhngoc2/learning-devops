@@ -1,0 +1,7 @@
+[
+  { "id": "u001", "name": "An Nguyen", "email": "an.nguyen@example.com", "role": "admin" },
+  { "id": "u002", "name": "Binh Tran", "email": "binh.tran@example.com", "role": "developer" },
+  { "id": "u003", "name": "Chi Le", "email": "chi.le@example.com", "role": "developer" },
+  { "id": "u004", "name": "Dung Pham", "email": "dung.pham@example.com", "role": "devops" },
+  { "id": "u005", "name": "Em Vo", "email": "em.vo@example.com", "role": "viewer" }
+]

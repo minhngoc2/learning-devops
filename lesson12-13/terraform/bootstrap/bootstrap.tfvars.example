@@ -1,0 +1,2 @@
+aws_region = "ap-southeast-1" # dev.backend.hcl must use the same region
+project    = "lesson12-13"       # bucket name: <project>-tfstate-<account-id>-<aws_region>

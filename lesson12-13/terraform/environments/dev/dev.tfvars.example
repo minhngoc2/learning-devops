@@ -1,0 +1,4 @@
+aws_region         = "ap-southeast-1"
+project            = "lesson12-13"
+lambda_memory_size = 1024 # 1 GB, as the assignment requires
+seed_users         = true
