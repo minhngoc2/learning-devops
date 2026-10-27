@@ -31,21 +31,19 @@ A Python `GET /users` API on AWS Lambda (1 GB) that reads a DynamoDB table, behi
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  C[Client] -- HTTPS --> A["API Gateway<br/>HTTP API<br/>3 routes, throttled"]
-  A -- "AWS_PROXY<br/>payload 2.0" --> L["Lambda<br/>python3.13 · arm64<br/>1024 MB · 10 s"]
-  L -- "GetItem / Scan<br/>(IAM role)" --> D[("DynamoDB<br/>lesson12-13-dev-users<br/>on-demand · PITR")]
-  L -. logs .-> CW["CloudWatch Logs<br/>function + access"]
-  A -. access logs .-> CW
-```
+**Client → API Gateway (HTTP API) → Lambda (Python, 1 GB) → DynamoDB**
+
+![Lesson 12-13 architecture: inside AWS ap-southeast-1, the client calls API Gateway, which invokes the Lambda function, which reads the DynamoDB users table; a Lambda permission limits invokes to this API, and the execution role allows reading only this table; both log groups record each request. Below, the developer laptop zips handler.py, the Terraform dev root applies 19 resources and keeps state in the S3 bucket that the bootstrap root creates once](diagrams/architecture.png)
 
 | Part | Notes |
 | --- | --- |
 | API Gateway | Throttled to 10 req/s (burst 20), JSON access logs. Routes that are not listed return `404` and never invoke Lambda |
 | Lambda | Routes on `routeKey`. Creates the DynamoDB client once and reuses it on warm calls. Logs are JSON |
 | DynamoDB | On-demand, keyed on `id`, with PITR and encryption. Seeded with 5 users from [`seed/users.json`](terraform/environments/dev/seed/users.json) |
+| IAM | The Lambda permission lets only this API invoke the function. The execution role can write logs and read this one table |
 | State | A private, versioned, HTTPS-only S3 bucket from `terraform/bootstrap`, with S3-native locking |
+
+Diagram source: [`diagrams/source/architecture.json`](diagrams/source/architecture.json) (Archify).
 
 ## Layout
 
@@ -54,6 +52,8 @@ app/                         handler.py + test_handler.py (fake table, no AWS)
 terraform/bootstrap/         S3 state bucket (local state, run once)
 terraform/environments/dev/  The stack: 19 resources, seed data, mocked tests
 terraform/modules/           state-bucket · dynamodb-table · lambda-function · api-gateway
+diagrams/                    Architecture image and its Archify source
+evidence/                    Run log of the live deploy
 ```
 
 ## API

@@ -1,0 +1,530 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Lesson 12-13: Python users API on Lambda + DynamoDB",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "output": "architecture.html",
+    "repository": {
+      "url": "https://github.com/minhngoc2/learning-devops.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "76da2b751467b4187e01b56226c583459da95809"
+    },
+    "views": [
+      {
+        "id": "request",
+        "label": "Request path",
+        "focus": [
+          "client",
+          "apigw",
+          "lambda",
+          "table",
+          "accesslogs",
+          "fnlogs"
+        ],
+        "note": "HTTPS in, AWS_PROXY invoke, a GetItem or Scan on the table, JSON back. Both log groups record the request."
+      },
+      {
+        "id": "trust",
+        "label": "Least privilege",
+        "focus": [
+          "permission",
+          "apigw",
+          "lambda",
+          "role",
+          "table"
+        ],
+        "note": "Only this API may invoke the function, and the function may only read this one table."
+      },
+      {
+        "id": "deploy",
+        "label": "Build and deploy",
+        "focus": [
+          "laptop",
+          "zip",
+          "terraform",
+          "state",
+          "bootstrap",
+          "lambda"
+        ],
+        "note": "Bootstrap creates the state bucket once. Every plan zips handler.py; a new hash updates only the function code."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "permission",
+      "type": "security",
+      "label": "Lambda permission",
+      "sublabel": "apigateway.amazonaws.com / this API only",
+      "pos": [
+        330,
+        40
+      ],
+      "size": [
+        240,
+        72
+      ],
+      "sources": [
+        {
+          "path": "lesson12-13/terraform/modules/api-gateway/main.tf",
+          "line": 52,
+          "end_line": 59,
+          "label": "aws_lambda_permission"
+        }
+      ]
+    },
+    {
+      "id": "role",
+      "type": "security",
+      "label": "Execution role",
+      "sublabel": "logs + users-table-read",
+      "pos": [
+        1070,
+        40
+      ],
+      "size": [
+        200,
+        72
+      ],
+      "sources": [
+        {
+          "path": "lesson12-13/terraform/modules/lambda-function/main.tf",
+          "line": 1,
+          "end_line": 27,
+          "label": "role, logs, inline policies"
+        },
+        {
+          "path": "lesson12-13/terraform/environments/dev/main.tf",
+          "line": 51,
+          "end_line": 62,
+          "label": "GetItem/Scan on one table"
+        }
+      ]
+    },
+    {
+      "id": "client",
+      "type": "external",
+      "label": "Client",
+      "sublabel": "curl / browser",
+      "pos": [
+        40,
+        190
+      ],
+      "size": [
+        170,
+        72
+      ]
+    },
+    {
+      "id": "apigw",
+      "type": "frontend",
+      "label": "API Gateway HTTP API",
+      "sublabel": "$default stage / 10 rps, burst 20",
+      "pos": [
+        330,
+        190
+      ],
+      "size": [
+        240,
+        72
+      ],
+      "tag": "3 routes, else 404",
+      "sources": [
+        {
+          "path": "lesson12-13/terraform/modules/api-gateway/main.tf",
+          "line": 1,
+          "end_line": 36,
+          "label": "API, integration, routes, stage"
+        },
+        {
+          "path": "lesson12-13/terraform/environments/dev/main.tf",
+          "line": 65,
+          "end_line": 72,
+          "label": "3 routes"
+        }
+      ]
+    },
+    {
+      "id": "lambda",
+      "type": "backend",
+      "label": "Lambda lesson12-13-dev",
+      "sublabel": "python3.13 / arm64 / handler.lambda_handler",
+      "pos": [
+        700,
+        190
+      ],
+      "size": [
+        240,
+        72
+      ],
+      "tag": "1024 MB / 10 s",
+      "sources": [
+        {
+          "path": "lesson12-13/terraform/environments/dev/main.tf",
+          "line": 34,
+          "end_line": 49,
+          "label": "function settings + env"
+        },
+        {
+          "path": "lesson12-13/app/handler.py",
+          "line": 35,
+          "end_line": 52,
+          "label": "routing on routeKey"
+        },
+        {
+          "path": "lesson12-13/terraform/environments/dev/dev.tfvars.example",
+          "line": 3,
+          "end_line": 3,
+          "label": "1 GB memory"
+        }
+      ]
+    },
+    {
+      "id": "table",
+      "type": "database",
+      "label": "DynamoDB users table",
+      "sublabel": "on-demand / key id / PITR",
+      "pos": [
+        1070,
+        190
+      ],
+      "size": [
+        200,
+        72
+      ],
+      "tag": "5 seed users",
+      "sources": [
+        {
+          "path": "lesson12-13/terraform/modules/dynamodb-table/main.tf",
+          "line": 9,
+          "end_line": 36,
+          "label": "aws_dynamodb_table"
+        },
+        {
+          "path": "lesson12-13/terraform/environments/dev/main.tf",
+          "line": 8,
+          "end_line": 22,
+          "label": "table + seed items"
+        },
+        {
+          "path": "lesson12-13/app/handler.py",
+          "line": 59,
+          "end_line": 79,
+          "label": "Scan and GetItem calls"
+        }
+      ]
+    },
+    {
+      "id": "accesslogs",
+      "type": "database",
+      "label": "API access logs",
+      "sublabel": "/aws/apigateway/lesson12-13-dev / 7 d",
+      "pos": [
+        330,
+        350
+      ],
+      "size": [
+        240,
+        72
+      ],
+      "sources": [
+        {
+          "path": "lesson12-13/terraform/modules/api-gateway/main.tf",
+          "line": 22,
+          "end_line": 49,
+          "label": "log group + JSON format"
+        }
+      ]
+    },
+    {
+      "id": "fnlogs",
+      "type": "database",
+      "label": "Function logs",
+      "sublabel": "/aws/lambda/lesson12-13-dev / 7 d",
+      "pos": [
+        1070,
+        350
+      ],
+      "size": [
+        200,
+        72
+      ],
+      "sources": [
+        {
+          "path": "lesson12-13/terraform/modules/lambda-function/main.tf",
+          "line": 29,
+          "end_line": 58,
+          "label": "log group + JSON logs"
+        }
+      ]
+    },
+    {
+      "id": "laptop",
+      "type": "external",
+      "label": "Developer laptop",
+      "sublabel": "unittest / plan / apply",
+      "pos": [
+        40,
+        510
+      ],
+      "size": [
+        170,
+        72
+      ]
+    },
+    {
+      "id": "zip",
+      "type": "cloud",
+      "label": "build/function.zip",
+      "sublabel": "archive_file of handler.py",
+      "pos": [
+        330,
+        510
+      ],
+      "size": [
+        240,
+        72
+      ],
+      "sources": [
+        {
+          "path": "lesson12-13/terraform/environments/dev/main.tf",
+          "line": 24,
+          "end_line": 32,
+          "label": "data.archive_file"
+        }
+      ]
+    },
+    {
+      "id": "terraform",
+      "type": "cloud",
+      "label": "Terraform dev root",
+      "sublabel": "4 modules / 19 resources",
+      "pos": [
+        700,
+        510
+      ],
+      "size": [
+        240,
+        72
+      ],
+      "sources": [
+        {
+          "path": "lesson12-13/terraform/environments/dev/main.tf",
+          "line": 1,
+          "end_line": 72,
+          "label": "module wiring"
+        },
+        {
+          "path": "lesson12-13/terraform/environments/dev/backend.tf",
+          "line": 1,
+          "end_line": 3,
+          "label": "S3 backend"
+        }
+      ]
+    },
+    {
+      "id": "state",
+      "type": "database",
+      "label": "S3 state bucket",
+      "sublabel": "lesson12-13-tfstate-* / locked",
+      "pos": [
+        1070,
+        510
+      ],
+      "size": [
+        200,
+        72
+      ],
+      "sources": [
+        {
+          "path": "lesson12-13/terraform/modules/state-bucket/main.tf",
+          "line": 1,
+          "end_line": 15,
+          "label": "bucket, versioning"
+        },
+        {
+          "path": "lesson12-13/terraform/environments/dev/dev.backend.hcl.example",
+          "line": 1,
+          "end_line": 5,
+          "label": "use_lockfile"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap",
+      "type": "cloud",
+      "label": "Terraform bootstrap",
+      "sublabel": "run once / local state",
+      "pos": [
+        1070,
+        650
+      ],
+      "size": [
+        200,
+        72
+      ],
+      "sources": [
+        {
+          "path": "lesson12-13/terraform/bootstrap/main.tf",
+          "line": 1,
+          "end_line": 8,
+          "label": "state_bucket module"
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "client-api",
+      "from": "client",
+      "to": "apigw",
+      "label": "HTTPS GET",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-lambda",
+      "from": "apigw",
+      "to": "lambda",
+      "label": "AWS_PROXY 2.0",
+      "variant": "emphasis"
+    },
+    {
+      "id": "lambda-table",
+      "from": "lambda",
+      "to": "table",
+      "label": "GetItem / Scan",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-access",
+      "from": "apigw",
+      "to": "accesslogs",
+      "label": "one line / request",
+      "variant": "dashed"
+    },
+    {
+      "id": "lambda-logs",
+      "from": "lambda",
+      "to": "fnlogs",
+      "label": "JSON logs",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "perm-lambda",
+      "from": "permission",
+      "to": "lambda",
+      "label": "allows invoke",
+      "variant": "security",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "lambda-role",
+      "from": "lambda",
+      "to": "role",
+      "label": "assumes",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "role-table",
+      "from": "role",
+      "to": "table",
+      "label": "read this table only",
+      "variant": "security"
+    },
+    {
+      "id": "laptop-zip",
+      "from": "laptop",
+      "to": "zip",
+      "label": "handler.py",
+      "variant": "default"
+    },
+    {
+      "id": "zip-tf",
+      "from": "zip",
+      "to": "terraform",
+      "label": "source_code_hash",
+      "variant": "default"
+    },
+    {
+      "id": "tf-state",
+      "from": "terraform",
+      "to": "state",
+      "label": "state + lock",
+      "variant": "dashed"
+    },
+    {
+      "id": "tf-lambda",
+      "from": "terraform",
+      "to": "lambda",
+      "label": "apply: 19 resources",
+      "variant": "default"
+    },
+    {
+      "id": "boot-state",
+      "from": "bootstrap",
+      "to": "state",
+      "label": "creates once",
+      "variant": "default"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "AWS ap-southeast-1 / dev stack, no VPC",
+      "wraps": [
+        "permission",
+        "role",
+        "apigw",
+        "lambda",
+        "table",
+        "accesslogs",
+        "fnlogs"
+      ],
+      "pad": 24
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Who answers a request",
+      "items": [
+        "Unlisted route: API Gateway returns 404 {\"message\":\"Not Found\"}; Lambda never runs.",
+        "Over 10 rps (burst 20): API Gateway returns 429 before invoking.",
+        "Listed route: the handler returns 200, 400 (bad limit or cursor), 404 (user not found) or 500 (AWS error, details only in logs)."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Least privilege",
+      "items": [
+        "Who may CALL the function: the Lambda permission, principal apigateway.amazonaws.com, source_arn = this API's execution_arn/*/*.",
+        "What the function may DO: write its logs, and run dynamodb:GetItem and dynamodb:Scan on this one table ARN. No writes or deletes."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Build, deploy, release",
+      "items": [
+        "terraform/bootstrap (local state) runs once and creates the S3 state bucket via modules/state-bucket.",
+        "No build step: every plan zips app/handler.py, and boto3 comes from the Lambda runtime.",
+        "The first apply creates 19 resources, including 5 seed users. A code change updates only source_code_hash."
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Scope of this drawing",
+      "items": [
+        "Drawn from the lesson12-13 Terraform and Python source, and confirmed by a live deploy; not a live AWS inventory.",
+        "TABLE_NAME reaches the function as an environment variable from the table module output."
+      ]
+    }
+  ]
+}
