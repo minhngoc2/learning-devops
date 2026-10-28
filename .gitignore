@@ -1,1 +1,6 @@
 skill-drafts/
+
+# Local tooling output and OS files.
+.DS_Store
+.archify/
+docs/superpowers/
