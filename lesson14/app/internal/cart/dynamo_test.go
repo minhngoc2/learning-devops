@@ -23,7 +23,9 @@ type fakeDynamo struct {
 
 func newFakeDynamo(t *testing.T) *fakeDynamo { return &fakeDynamo{t: t, items: map[string]record{}} }
 
-func ccf() error { return &types.ConditionalCheckFailedException{Message: aws.String("The conditional request failed")} }
+func ccf() error {
+	return &types.ConditionalCheckFailedException{Message: aws.String("The conditional request failed")}
+}
 
 func subOf(key map[string]types.AttributeValue) string {
 	return key["customer_sub"].(*types.AttributeValueMemberS).Value

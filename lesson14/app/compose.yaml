@@ -42,7 +42,7 @@ services:
       retries: 15
 
   dynamodb:
-    image: amazon/dynamodb-local
+    image: amazon/dynamodb-local:3.3.2
     command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
 
   localbus:
@@ -176,9 +176,14 @@ services:
       - "8000:8000"
     volumes:
       - ./local/Caddyfile:/etc/caddy/Caddyfile:ro
-    depends_on:
-      - user
-      - product
-      - cart
-      - order
-      - payment
+    depends_on: # route only to healthy services, as the internal ALB's target groups do
+      user:
+        condition: service_healthy
+      product:
+        condition: service_healthy
+      cart:
+        condition: service_healthy
+      order:
+        condition: service_healthy
+      payment:
+        condition: service_healthy
