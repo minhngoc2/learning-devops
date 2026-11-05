@@ -36,8 +36,8 @@ services:
       POSTGRES_USER: shop_admin
       POSTGRES_PASSWORD: local-only
       POSTGRES_DB: shop
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "shop_admin", "-d", "shop"]
+    healthcheck: # over TCP: during first-run init a temporary server answers on the Unix socket only
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "shop_admin", "-d", "shop"]
       interval: 2s
       retries: 15
 
