@@ -24,3 +24,4 @@ crash.*.log
 /storefront/node_modules/
 /storefront/.nuxt/
 /storefront/.output/
+/storefront/dist
