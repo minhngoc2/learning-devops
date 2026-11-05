@@ -9,6 +9,16 @@ variable "name" {
   }
 }
 
+variable "aws_region" {
+  description = "Region for the awslogs driver (passed in: a data source here would be deferred under the caller's depends_on)."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z]{2}(-[a-z]+)+-[0-9]$", var.aws_region))
+    error_message = "aws_region must be a region code such as ap-southeast-1."
+  }
+}
+
 variable "cluster_id" {
   description = "ECS cluster ID (ecs-cluster cluster_id) the service runs in."
   type        = string

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -69,20 +70,25 @@ func (s *dynamoStore) PutItem(ctx context.Context, sub, productID string, qty in
 		":epoch": &types.AttributeValueMemberN{Value: strconv.FormatInt(now.Unix(), 10)},
 	}
 	update := "SET updated_at = :now, #ttl = :ttl REMOVE #items.#pid"
+	condition := "attribute_exists(#items) AND #ttl >= :epoch"
 	if qty > 0 {
 		values[":qty"] = &types.AttributeValueMemberN{Value: strconv.Itoa(qty)}
+		values[":max"] = &types.AttributeValueMemberN{Value: strconv.Itoa(MaxLines)}
 		update = "SET #items.#pid = :qty, updated_at = :now, #ttl = :ttl"
+		// A new key may only be added below MaxLines lines; an existing line can always change.
+		condition += " AND (attribute_exists(#items.#pid) OR size(#items) < :max)"
 	}
 
 	for range 3 { // retries only when a concurrent first write races us
 		out, err := s.api.UpdateItem(ctx, &dynamodb.UpdateItemInput{
-			TableName:                 aws.String(s.table),
-			Key:                       s.key(sub),
-			UpdateExpression:          aws.String(update),
-			ConditionExpression:       aws.String("attribute_exists(#items) AND #ttl >= :epoch"),
-			ExpressionAttributeNames:  map[string]string{"#items": "items", "#pid": productID, "#ttl": "ttl"},
-			ExpressionAttributeValues: values,
-			ReturnValues:              types.ReturnValueAllNew,
+			TableName:                           aws.String(s.table),
+			Key:                                 s.key(sub),
+			UpdateExpression:                    aws.String(update),
+			ConditionExpression:                 aws.String(condition),
+			ExpressionAttributeNames:            map[string]string{"#items": "items", "#pid": productID, "#ttl": "ttl"},
+			ExpressionAttributeValues:           values,
+			ReturnValues:                        types.ReturnValueAllNew,
+			ReturnValuesOnConditionCheckFailure: types.ReturnValuesOnConditionCheckFailureAllOld,
 		})
 		if err == nil {
 			return s.decode(sub, out.Attributes)
@@ -92,6 +98,11 @@ func (s *dynamoStore) PutItem(ctx context.Context, sub, productID string, qty in
 		}
 		if qty == 0 { // no cart, so nothing to remove
 			return newCart(sub, nil, time.Time{}), nil
+		}
+		// The condition also fails on a live cart that is full: that is the caller's error, not a missing cart.
+		if old, err := s.decode(sub, conditionFailedItem(err)); err == nil && len(old.Items) >= MaxLines &&
+			!slices.ContainsFunc(old.Items, func(it Item) bool { return it.ProductID == productID }) {
+			return Cart{}, ErrCartFull
 		}
 
 		rec := record{CustomerSub: sub, Items: map[string]int{productID: qty}, UpdatedAt: now.Format(time.RFC3339), TTL: s.expiry(now)}
@@ -146,4 +157,13 @@ func (s *dynamoStore) decode(sub string, item map[string]types.AttributeValue) (
 func isConditionFailed(err error) bool {
 	var ccf *types.ConditionalCheckFailedException
 	return errors.As(err, &ccf)
+}
+
+// conditionFailedItem is the item as it was when the condition failed (ReturnValuesOnConditionCheckFailure ALL_OLD).
+func conditionFailedItem(err error) map[string]types.AttributeValue {
+	var ccf *types.ConditionalCheckFailedException
+	if errors.As(err, &ccf) {
+		return ccf.Item
+	}
+	return nil
 }

@@ -3,7 +3,7 @@
 This guide takes you from an empty AWS account to a working shop (six services, a storefront, an event-driven order flow), through six failure scenarios and a release, and then back to empty. Each step has the commands to run and what to expect.
 
 > [!NOTE]
-> **About the sample output:** the live run has not been recorded yet, so every `Sample output` block for an AWS step is still a placeholder, and so are the resource counts marked `<N>`. Offline numbers (66 mocked test runs, 449 checkov checks, 9 prerendered storefront routes, 4 release-check tests) and the sample output of steps 1.2 and 4 come from real runs.
+> **About the sample output:** the live run has not been recorded yet, so every `Sample output` block for an AWS step is still a placeholder, and so are the resource counts marked `<N>`. Offline numbers (66 mocked test runs, 449 checkov checks, 9 prerendered storefront routes, 4 release-check tests) and the sample output of steps 1.2 and 4 come from real runs; those blocks are real output with the long `docker buildx` lines and absolute paths elided.
 
 | Step | What you do | AWS cost |
 | --- | --- | --- |

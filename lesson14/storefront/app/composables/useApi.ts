@@ -124,8 +124,9 @@ export function useApi() {
     if (!res.ok) {
       const msg = (data as { error?: string } | null)?.error ?? `${res.status} ${res.statusText}`
       // An expired or invalid token: drop the session and log in again. A 403 (WAF block, origin check)
-      // says nothing about the token, so it keeps the session.
-      if (res.status === 401 && sent) {
+      // says nothing about the token, so it keeps the session. A stale request (sent before a newer login)
+      // must not drop the newer session.
+      if (res.status === 401 && sent && sent === token.value) {
         clearToken()
         const here = nuxtApp.$router.currentRoute.value
         if (here.path !== '/login') {

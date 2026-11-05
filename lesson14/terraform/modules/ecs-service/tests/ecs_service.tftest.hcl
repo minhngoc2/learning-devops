@@ -3,6 +3,7 @@ mock_provider "aws" {}
 
 variables {
   name                       = "lesson14-dev-user"
+  aws_region                 = "ap-southeast-1"
   cluster_id                 = "arn:aws:ecs:ap-southeast-1:111111111111:cluster/lesson14-dev"
   cluster_name               = "lesson14-dev"
   vpc_id                     = "vpc-0123456789abcdef0"
@@ -165,7 +166,8 @@ run "reject_bad_inputs" {
     min_count          = 3
     max_count          = 2
     log_retention_days = 10
+    aws_region         = "Singapore"
   }
   # 3000 MiB is no Fargate size. The cpu/memory pairing is a task-definition precondition, unreachable while cpu is invalid.
-  expect_failures = [var.cpu, var.memory, var.max_count, var.log_retention_days]
+  expect_failures = [var.aws_region, var.cpu, var.memory, var.max_count, var.log_retention_days]
 }

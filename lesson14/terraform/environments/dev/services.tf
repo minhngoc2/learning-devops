@@ -133,6 +133,7 @@ module "service" {
   for_each = local.services
 
   name             = "${local.name}-${each.key}"
+  aws_region       = var.aws_region
   cluster_id       = module.cluster.cluster_id
   cluster_name     = module.cluster.cluster_name
   vpc_id           = module.network.vpc_id
@@ -159,6 +160,7 @@ module "db_init" {
   source = "../../modules/ecs-service"
 
   name               = "${local.name}-db-init"
+  aws_region         = var.aws_region
   create_service     = false
   cluster_id         = module.cluster.cluster_id
   cluster_name       = module.cluster.cluster_name
@@ -197,6 +199,7 @@ resource "terraform_data" "db_init" {
     }
   }
 
-  # The task needs its path into RDS and the NAT route (ECR, Secrets Manager) before it starts.
-  depends_on = [aws_vpc_security_group_ingress_rule.db_from_db_init, module.network]
+  # The task needs its path into RDS, the NAT route (ECR, Secrets Manager) and its whole module (roles, read-secrets policy,
+  # log group) before it starts.
+  depends_on = [aws_vpc_security_group_ingress_rule.db_from_db_init, module.network, module.db_init]
 }

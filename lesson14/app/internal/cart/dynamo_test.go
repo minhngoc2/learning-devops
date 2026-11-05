@@ -2,6 +2,8 @@ package cart
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -52,15 +54,27 @@ func (f *fakeDynamo) GetItem(_ context.Context, in *dynamodb.GetItemInput, _ ...
 
 func (f *fakeDynamo) UpdateItem(_ context.Context, in *dynamodb.UpdateItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error) {
 	f.calls = append(f.calls, "UpdateItem")
-	if aws.ToString(in.ConditionExpression) != "attribute_exists(#items) AND #ttl >= :epoch" {
-		f.t.Fatalf("unexpected update condition %q", aws.ToString(in.ConditionExpression))
-	}
+	const live = "attribute_exists(#items) AND #ttl >= :epoch"
+	const capped = live + " AND (attribute_exists(#items.#pid) OR size(#items) < :max)"
 	sub, v := subOf(in.Key), in.ExpressionAttributeValues
-	rec, ok := f.items[sub]
-	if !ok || rec.Items == nil || rec.TTL < num(f.t, v[":epoch"]) {
-		return nil, ccf()
+	_, set := v[":qty"]
+	if cond := aws.ToString(in.ConditionExpression); (set && cond != capped) || (!set && cond != live) {
+		f.t.Fatalf("unexpected update condition %q", cond)
 	}
+	if in.ReturnValuesOnConditionCheckFailure != types.ReturnValuesOnConditionCheckFailureAllOld {
+		f.t.Fatalf("ReturnValuesOnConditionCheckFailure = %q, want ALL_OLD", in.ReturnValuesOnConditionCheckFailure)
+	}
+	rec, ok := f.items[sub]
 	pid := in.ExpressionAttributeNames["#pid"]
+	_, exists := rec.Items[pid]
+	if !ok || rec.Items == nil || rec.TTL < num(f.t, v[":epoch"]) ||
+		(set && !exists && int64(len(rec.Items)) >= num(f.t, v[":max"])) {
+		err := ccf()
+		if ok {
+			err.(*types.ConditionalCheckFailedException).Item, _ = attributevalue.MarshalMap(rec)
+		}
+		return nil, err
+	}
 	if q, ok := v[":qty"]; ok {
 		rec.Items[pid] = int(num(f.t, q))
 	} else {
@@ -202,6 +216,38 @@ func TestDynamoStore_ExpiredItemReadsEmptyAndIsReplaced(t *testing.T) {
 	}
 	if len(c.Items) != 1 || c.Items[0].ProductID != "p-new" {
 		t.Errorf("cart = %+v, want only p-new", c)
+	}
+}
+
+func TestDynamoStore_CartFull(t *testing.T) {
+	s, f := newDynamoTestStore(t)
+	ctx := context.Background()
+	items := map[string]int{}
+	for i := range MaxLines {
+		items[fmt.Sprintf("p-%04d", i)] = 1
+	}
+	f.items["sub-1"] = record{CustomerSub: "sub-1", Items: items, UpdatedAt: "2026-11-05T09:00:00Z", TTL: fixedNow.Add(time.Hour).Unix()}
+
+	// A new product is refused without falling through to the create path (which would wipe the cart).
+	if _, err := s.PutItem(ctx, "sub-1", "p-new", 1); !errors.Is(err, ErrCartFull) {
+		t.Fatalf("PutItem new line on full cart: err = %v, want ErrCartFull", err)
+	}
+	if got := strings.Join(f.calls, ","); got != "UpdateItem" {
+		t.Errorf("calls = %s, want UpdateItem only", got)
+	}
+	if len(f.items["sub-1"].Items) != MaxLines {
+		t.Errorf("stored lines = %d, want %d", len(f.items["sub-1"].Items), MaxLines)
+	}
+
+	// Existing lines still change, and removing one frees a slot.
+	if c, err := s.PutItem(ctx, "sub-1", "p-0000", 5); err != nil || len(c.Items) != MaxLines {
+		t.Fatalf("update existing line: %d lines, %v", len(c.Items), err)
+	}
+	if _, err := s.PutItem(ctx, "sub-1", "p-0001", 0); err != nil {
+		t.Fatalf("remove line: %v", err)
+	}
+	if c, err := s.PutItem(ctx, "sub-1", "p-new", 1); err != nil || len(c.Items) != MaxLines {
+		t.Fatalf("add after removal: %d lines, %v", len(c.Items), err)
 	}
 }
 

@@ -5,6 +5,7 @@ One Fargate (ARM64) workload: task definition with a single container named `app
 | Input | Default | Purpose / rule |
 | --- | --- | --- |
 | `name` | Required | Service, family, SG, roles `<name>-execution`/`<name>-task`; 1–54 chars |
+| `aws_region` | Required | `awslogs-region`; a region code such as `ap-southeast-1` |
 | `cluster_id`, `cluster_name` | Required | Cluster for the service and for the scaling resource ID |
 | `vpc_id`, `subnet_ids` | Required | Task SG VPC; ≥ 1 private subnet (no public IP) |
 | `image` | Required | Full ARM64 image reference |
@@ -38,6 +39,7 @@ One Fargate (ARM64) workload: task definition with a single container named `app
 module "service" {
   source                     = "../../modules/ecs-service"
   name                       = "lesson14-dev-user"
+  aws_region                 = var.aws_region
   cluster_id                 = module.cluster.cluster_id
   cluster_name               = module.cluster.cluster_name
   vpc_id                     = module.network.vpc_id

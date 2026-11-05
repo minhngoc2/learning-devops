@@ -3,6 +3,7 @@ package cart
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -10,6 +11,12 @@ import (
 
 // MaxQuantity is the largest quantity a cart line may hold; 0 removes the line.
 const MaxQuantity = 99
+
+// MaxLines caps the distinct products in one cart; it keeps the DynamoDB item and a checkout's ?ids= lookup bounded.
+const MaxLines = 100
+
+// ErrCartFull is returned by PutItem when a new product would exceed MaxLines.
+var ErrCartFull = errors.New("cart is full (max 100 lines)")
 
 type Item struct {
 	ProductID string `json:"product_id"`
@@ -24,7 +31,8 @@ type Cart struct {
 }
 
 // Store persists carts. PutItem sets a line's quantity (qty 0 removes it) and returns the updated cart;
-// callers validate 0 <= qty <= MaxQuantity first. Clear removes the whole cart and succeeds if none exists.
+// callers validate 0 <= qty <= MaxQuantity first. Adding a product to a cart that already has MaxLines lines
+// returns ErrCartFull. Clear removes the whole cart and succeeds if none exists.
 type Store interface {
 	Get(ctx context.Context, sub string) (Cart, error)
 	PutItem(ctx context.Context, sub, productID string, qty int) (Cart, error)

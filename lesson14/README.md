@@ -64,7 +64,7 @@ All routes are under the CloudFront URL. 🔒 = needs `Authorization: Bearer <id
 | `GET /api/products/{id}` | `200` | One product. `404` `product not found` |
 | `POST /api/products` 🔒 | `201` | Seed/demo only. `409` for an existing id. `400` `currency must be VND` |
 | `GET /api/cart` 🔒 | `200` | `{customer_sub,items:[{product_id,quantity}],updated_at}` |
-| `PUT /api/cart/items/{productId}` 🔒 `{quantity}` | `200` | The cart. `0` removes the line. `400` outside 0–99 |
+| `PUT /api/cart/items/{productId}` 🔒 `{quantity}` | `200` | The cart. `0` removes the line. `400` outside 0–99. `422` `cart is full (max 100 lines)` for a new product on a 100-line cart |
 | `DELETE /api/cart` 🔒 | `204` | Empty |
 | `POST /api/orders` 🔒 | `201` | The order, `PENDING_PAYMENT`, prices copied at checkout. `422` `cart is empty` or `unknown product <id>` |
 | `GET /api/orders` 🔒, `GET /api/orders/{id}` 🔒 | `200` | Your orders, newest first. Status ends as `PAID` or `PAYMENT_FAILED`. `404` for someone else's order |

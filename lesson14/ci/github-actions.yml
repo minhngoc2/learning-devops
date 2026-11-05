@@ -117,7 +117,7 @@ jobs:
       contents: read
       id-token: write  # OIDC: short-lived AWS credentials, no stored access keys
     concurrency:
-      group: lesson14-dev  # one group for plan and apply: a newer plan never runs between a plan and its apply
+      group: lesson14-dev  # one group for plan and apply: serializes plan and apply
       cancel-in-progress: false  # never cancel a running plan/apply mid-way (state lock)
     steps:
       - uses: actions/checkout@v4
@@ -160,7 +160,7 @@ jobs:
       contents: read
       id-token: write  # OIDC: short-lived AWS credentials, no stored access keys
     concurrency:
-      group: lesson14-dev  # one group for plan and apply: a newer plan never runs between a plan and its apply
+      group: lesson14-dev  # one group for plan and apply: serializes plan and apply
       cancel-in-progress: false  # never cancel a running plan/apply mid-way (state lock)
     steps:
       - uses: actions/checkout@v4

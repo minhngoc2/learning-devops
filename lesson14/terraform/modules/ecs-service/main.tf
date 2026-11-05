@@ -1,5 +1,3 @@
-data "aws_region" "current" {}
-
 locals {
   # Fargate CPU/memory combinations: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-tasks-services.html#fargate-tasks-size
   fargate_memory_for_cpu = {
@@ -105,6 +103,12 @@ resource "aws_vpc_security_group_ingress_rule" "this" {
   description                  = "Container port from ${each.key}"
 }
 
+# The rule used count before ingress_security_group_ids became a map.
+moved {
+  from = aws_vpc_security_group_ingress_rule.this[0]
+  to   = aws_vpc_security_group_ingress_rule.this["alb"]
+}
+
 # Egress to AWS APIs (ECR, Secrets Manager, CloudWatch, SQS, SNS, DynamoDB, S3) and to RDS.
 resource "aws_vpc_security_group_egress_rule" "all" {
   security_group_id = aws_security_group.this.id
@@ -145,7 +149,7 @@ resource "aws_ecs_task_definition" "this" {
       logDriver = "awslogs"
       options = {
         awslogs-group         = aws_cloudwatch_log_group.this.name
-        awslogs-region        = data.aws_region.current.region
+        awslogs-region        = var.aws_region
         awslogs-stream-prefix = "app"
       }
     }

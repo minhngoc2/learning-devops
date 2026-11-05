@@ -1,6 +1,7 @@
 package cart
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -73,6 +74,27 @@ func TestPutItem_QuantityRules(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPutItem_CartFull(t *testing.T) {
+	h := newHandler()
+	for i := range MaxLines {
+		if rec := do(h, "PUT", fmt.Sprintf("/api/cart/items/p-%04d", i), `{"quantity":1}`, "sub-1"); rec.Code != 200 {
+			t.Fatalf("line %d: status %d", i, rec.Code)
+		}
+	}
+
+	rec := do(h, "PUT", "/api/cart/items/p-new", `{"quantity":1}`, "sub-1")
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422 (body %s)", rec.Code, rec.Body)
+	}
+	if got := strings.TrimSpace(rec.Body.String()); got != `{"error":"cart is full (max 100 lines)"}` {
+		t.Errorf("body = %s", got)
+	}
+	// An existing line can still change on a full cart.
+	if rec := do(h, "PUT", "/api/cart/items/p-0000", `{"quantity":2}`, "sub-1"); rec.Code != 200 {
+		t.Errorf("update existing line on full cart: status %d", rec.Code)
 	}
 }
 

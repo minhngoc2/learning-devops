@@ -19,7 +19,7 @@ var seedID = regexp.MustCompile(`^p-[a-z0-9-]{1,32}$`)
 const (
 	// currency is the only one the shop sells in (money is integer cents + "VND").
 	currency = "VND"
-	// maxIDs caps ?ids= (distinct ids); a checkout never needs more lines than a cart can hold.
+	// maxIDs caps ?ids= (distinct ids) at cart.MaxLines: a checkout never needs more lines than a cart can hold.
 	maxIDs = 100
 )
 

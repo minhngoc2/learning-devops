@@ -73,3 +73,14 @@ func TestAdminConfigFromEnv_OverridesUserAndNeedsNoSchema(t *testing.T) {
 		t.Errorf("search_path set for the admin connection: %q", cc.RuntimeParams["search_path"])
 	}
 }
+
+func TestAdminConfigFromEnv_SSLModeDefaultsToRequire(t *testing.T) {
+	setDBEnv(t, map[string]string{"DB_HOST": "db.internal", "DB_NAME": "shop"}) // DB_SSLMODE unset
+	cc, err := AdminConfigFromEnv("shop_admin", "admin-pw")
+	if err != nil {
+		t.Fatalf("AdminConfigFromEnv: %v", err)
+	}
+	if cc.TLSConfig == nil {
+		t.Error("TLSConfig = nil, want TLS (sslmode=require) when DB_SSLMODE is unset")
+	}
+}

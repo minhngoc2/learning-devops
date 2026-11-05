@@ -31,6 +31,9 @@ func (s *memoryStore) PutItem(_ context.Context, sub, productID string, qty int)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c := s.carts[sub]
+	if _, exists := c.items[productID]; qty > 0 && !exists && len(c.items) >= MaxLines {
+		return Cart{}, ErrCartFull
+	}
 	c.items = maps.Clone(c.items)
 	if c.items == nil {
 		c.items = map[string]int{}

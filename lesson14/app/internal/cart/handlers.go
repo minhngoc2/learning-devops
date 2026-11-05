@@ -2,6 +2,7 @@ package cart
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -60,6 +61,10 @@ func (h handlers) putItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c, err := h.store.PutItem(r.Context(), id.Sub, productID, qty)
+	if errors.Is(err, ErrCartFull) {
+		httpx.WriteError(w, http.StatusUnprocessableEntity, ErrCartFull.Error())
+		return
+	}
 	if err != nil {
 		httpx.Internal(w, h.log, "put cart item", err)
 		return

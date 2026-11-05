@@ -22,7 +22,7 @@ const deadline = Date.now() + POLL_LIMIT_MS
 
 // Poll the order while payment is pending; once it settles, fetch the payment (404 until it exists).
 // Stops on 401/403 (useApi has already sent a 401 to /login), after 3 server or network failures in a
-// row, on a missing order, and after 5 minutes.
+// row, on a missing order, and after 5 minutes (then says the payment is still pending or not available yet).
 async function poll() {
   try {
     order.value = await request<Order>(`/api/orders/${id}`)
@@ -46,7 +46,8 @@ async function poll() {
     }
   }
   if (Date.now() >= deadline) {
-    timedOut.value = order.value?.status === 'PENDING_PAYMENT'
+    // Still pending, or settled while the payment kept answering 404: the template says which.
+    timedOut.value = true
     return
   }
   if (!stopped) timer = setTimeout(poll, POLL_MS)
@@ -121,6 +122,9 @@ async function addBackToCart() {
         </template>
         <p v-if="payment" class="muted">
           Payment {{ payment.id }} · {{ payment.status }} · {{ formatMoney(payment.amount_cents) }}
+        </p>
+        <p v-else-if="order.status !== 'PENDING_PAYMENT' && timedOut && !error" class="muted">
+          Payment details are not available yet — refresh
         </p>
       </div>
     </template>
