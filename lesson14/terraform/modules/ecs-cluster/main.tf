@@ -1,0 +1,19 @@
+resource "aws_ecs_cluster" "this" {
+  name = var.name
+
+  setting {
+    name  = "containerInsights"
+    value = var.container_insights ? "enabled" : "disabled"
+  }
+}
+
+# Services use FARGATE unless they set their own strategy; FARGATE_SPOT is available for cheap, interruptible work.
+resource "aws_ecs_cluster_capacity_providers" "this" {
+  cluster_name       = aws_ecs_cluster.this.name
+  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
+
+  default_capacity_provider_strategy {
+    capacity_provider = "FARGATE"
+    weight            = 1
+  }
+}
