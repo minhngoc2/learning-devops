@@ -1,0 +1,184 @@
+# Run all six services locally before touching AWS: docker compose up --build, then call http://localhost:8000.
+# Stand-ins: postgres (RDS), dynamodb (cart table), localbus (SNS + SQS), router (internal ALB path routing).
+# AUTH_MODE=local: nothing verifies a JWT locally, so callers send X-Customer-Sub / X-Customer-Email
+# themselves (on AWS, API Gateway's authorizer sets them). Every password here is a local-only placeholder.
+
+x-service: &service
+  restart: on-failure
+  depends_on: &service-deps
+    db-init:
+      condition: service_completed_successfully
+    localbus:
+      condition: service_healthy
+
+x-env: &env
+  PORT: "8080"
+  AWS_REGION: ap-southeast-1
+  LOG_LEVEL: debug
+  AUTH_MODE: local
+  EVENT_BUS: local
+  EVENT_BUS_URL: http://localbus:9000
+  DYNAMODB_ENDPOINT: http://dynamodb:8000
+  AWS_ACCESS_KEY_ID: local # dummy credentials: DynamoDB Local accepts any
+  AWS_SECRET_ACCESS_KEY: local
+
+x-db-env: &db-env
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_NAME: shop
+  DB_PASSWORD: local-only
+  DB_SSLMODE: disable # local postgres has no TLS; RDS uses the default "require"
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: shop_admin
+      POSTGRES_PASSWORD: local-only
+      POSTGRES_DB: shop
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "shop_admin", "-d", "shop"]
+      interval: 2s
+      retries: 15
+
+  dynamodb:
+    image: amazon/dynamodb-local
+    command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
+
+  localbus:
+    build:
+      context: .
+      args:
+        SERVICE: localbus
+    image: lesson14-localbus:dev
+    environment:
+      SERVICE: localbus
+      PORT: "9000"
+      LOG_LEVEL: debug
+    healthcheck: # the image's 30 s interval would delay every service's start
+      test: ["CMD", "/app", "-healthcheck"]
+      interval: 2s
+      retries: 15
+
+  # One-shot: creates schemas, svc_* roles and grants, then exits 0; the services start after it.
+  db-init:
+    build:
+      context: .
+      args:
+        SERVICE: db-init
+    image: lesson14-db-init:dev
+    restart: "no"
+    environment:
+      SERVICE: db-init
+      AWS_REGION: ap-southeast-1
+      LOG_LEVEL: debug
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: shop
+      DB_SSLMODE: disable
+      DB_ADMIN_USER: shop_admin
+      DB_ADMIN_PASSWORD: local-only
+      ROLE_PASSWORD_USER: local-only
+      ROLE_PASSWORD_PRODUCT: local-only
+      ROLE_PASSWORD_ORDER: local-only
+      ROLE_PASSWORD_PAYMENT: local-only
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  user:
+    <<: *service
+    build:
+      context: .
+      args:
+        SERVICE: user
+    image: lesson14-user:dev
+    environment:
+      <<: [*env, *db-env]
+      SERVICE: user
+      DB_USER: svc_user
+      DB_SCHEMA: users
+
+  product:
+    <<: *service
+    build:
+      context: .
+      args:
+        SERVICE: product
+    image: lesson14-product:dev
+    environment:
+      <<: [*env, *db-env]
+      SERVICE: product
+      DB_USER: svc_product
+      DB_SCHEMA: products
+      PUBLIC_BASE_URL: http://localhost:8000
+
+  cart:
+    <<: *service
+    build:
+      context: .
+      args:
+        SERVICE: cart
+    image: lesson14-cart:dev
+    environment:
+      <<: *env
+      SERVICE: cart
+      CART_TABLE: lesson14-local-cart
+      CART_TTL_DAYS: "7"
+    depends_on:
+      <<: *service-deps
+      dynamodb:
+        condition: service_started
+
+  order:
+    <<: *service
+    build:
+      context: .
+      args:
+        SERVICE: order
+    image: lesson14-order:dev
+    environment:
+      <<: [*env, *db-env]
+      SERVICE: order
+      DB_USER: svc_order
+      DB_SCHEMA: orders
+      ALB_URL: http://router:8000
+      ORIGIN_VERIFY: local-only
+
+  payment:
+    <<: *service
+    build:
+      context: .
+      args:
+        SERVICE: payment
+    image: lesson14-payment:dev
+    environment:
+      <<: [*env, *db-env]
+      SERVICE: payment
+      DB_USER: svc_payment
+      DB_SCHEMA: payments
+
+  notification:
+    <<: *service
+    build:
+      context: .
+      args:
+        SERVICE: notification
+    image: lesson14-notification:dev
+    environment:
+      <<: *env
+      SERVICE: notification
+      NOTIFY_MODE: log
+
+  router:
+    image: caddy:2-alpine
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./local/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - user
+      - product
+      - cart
+      - order
+      - payment

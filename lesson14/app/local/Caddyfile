@@ -1,0 +1,28 @@
+# Local stand-in for the internal ALB's path routing (compose only; same rules as the listener).
+# handle blocks are mutually exclusive; the bare one is the fallback, like the listener's default 404.
+{
+	admin off
+	auto_https off
+}
+
+:8000 {
+	handle /api/users* {
+		reverse_proxy user:8080
+	}
+	handle /api/products* {
+		reverse_proxy product:8080
+	}
+	handle /api/cart* {
+		reverse_proxy cart:8080
+	}
+	handle /api/orders* {
+		reverse_proxy order:8080
+	}
+	handle /api/payments* {
+		reverse_proxy payment:8080
+	}
+	handle {
+		header Content-Type application/json
+		respond `{"error":"not found"}` 404
+	}
+}
