@@ -3,7 +3,7 @@
 This guide takes you from an empty AWS account to a working shop (six services, a storefront, an event-driven order flow), through six failure scenarios and a release, and then back to empty. Each step has the commands to run and what to expect.
 
 > [!NOTE]
-> **About the sample output:** the live run has not been recorded yet, so every `Sample output` block is still a placeholder, and so are the resource counts marked `<N>`. Offline numbers (66 mocked test runs, 441 checkov checks, 9 storefront routes, 4 release-check tests) come from real runs.
+> **About the sample output:** the live run has not been recorded yet, so every `Sample output` block for an AWS step is still a placeholder, and so are the resource counts marked `<N>`. Offline numbers (66 mocked test runs, 449 checkov checks, 9 prerendered storefront routes, 4 release-check tests) and the sample output of steps 1.2 and 4 come from real runs.
 
 | Step | What you do | AWS cost |
 | --- | --- | --- |
@@ -13,7 +13,7 @@ This guide takes you from an empty AWS account to a working shop (six services, 
 | [3](#3-run-it-locally) | Run all six services and the storefront with Docker Compose | None |
 | [4](#4-run-the-offline-checks) | Go tests, storefront build, Terraform checks, TFLint, Checkov, release-check test | None |
 | [5](#5-deploy) | Create the image repositories, push `v1`, apply the stack | **Billed hourly from here**, design target about $4/day |
-| [6](#6-initialize-the-database) | Create the schemas and service roles, restart the database services | Running stack |
+| [6](#6-initialize-the-database) | Confirm `db-init` ran during apply, then check the release | Running stack |
 | [7](#7-publish-the-storefront) | Build the storefront and upload it to S3 | Running stack |
 | [8](#8-seed-the-catalogue) | Register the demo customer and create six products | Running stack |
 | [9](#9-verify) | Shop in the browser, then repeat the order flow with curl | Running stack |
@@ -34,9 +34,10 @@ You need:
 | Terraform | `>= 1.10, < 2.0` | Everything in `terraform/` |
 | AWS CLI | v2 | The scripts and the checks from step 5 on |
 | Docker | With `buildx` and `linux/arm64` support | The local run (step 3) and the image builds (steps 5 and 11) |
-| Go | 1.27 | Unit tests in step 4 |
+| Go | `>= 1.27.3` (`go.mod`) | Unit tests in step 4 |
 | Node.js + pnpm | Node 22, pnpm 12 (`packageManager` in `storefront/package.json`) | The storefront in steps 3, 4 and 7 |
-| Python 3, `jq`, `curl` | Any | The scripts read JSON with Python; you read it with `jq` |
+| Python 3, `jq` | Any | The scripts read JSON with Python; you read it with `jq` |
+| `curl` | `>= 7.76` | `check-release.sh` uses `--fail-with-body` |
 | TFLint, `uv` | Any | Optional lint and Checkov in step 4 |
 | `hey` | Any | Optional, for the WAF test in step 10.4 |
 
@@ -48,7 +49,7 @@ Use AWS credentials that can manage VPC/EC2, ECS, ECR, Elastic Load Balancing, A
 aws sts get-caller-identity
 ```
 
-Turn off the AWS CLI pager, and set the region. Every script in `scripts/` refuses to run without `AWS_REGION`:
+Turn off the AWS CLI pager, and set the region. Every script in `scripts/` that calls AWS refuses to run without `AWS_REGION`; only the dry run (`DRY_RUN=1 build-push.sh`) and the offline test (`test_check_release.py`) work without it:
 
 ```sh
 export AWS_PAGER=""
@@ -94,11 +95,20 @@ terraform -chdir=terraform/bootstrap output -raw state_bucket
 > Keep `terraform/bootstrap/terraform.tfstate`. Git ignores it, and it is the only record that Terraform manages the bucket.
 
 <details>
-<summary>Sample output</summary>
+<summary>Sample output (1.2, mocked tests)</summary>
 
 ```text
-TODO: paste from live run
+$ terraform -chdir=terraform/bootstrap test
+tests/bootstrap.tftest.hcl... in progress
+  run "bucket_name_format"... pass
+  run "reject_bad_project"... pass
+tests/bootstrap.tftest.hcl... tearing down
+tests/bootstrap.tftest.hcl... pass
+
+Success! 2 passed, 0 failed.
 ```
+
+Steps 1.3 and 1.4: TODO: paste from live run.
 
 </details>
 
@@ -220,7 +230,7 @@ pnpm --dir storefront install --frozen-lockfile
 pnpm --dir storefront generate
 ```
 
-`go test` reports `ok` for 11 packages. `pnpm generate` prerenders 9 routes and writes `storefront/.output/public`.
+`go test` reports `ok` for 13 packages (the `cmd/*` service mains have no tests). `pnpm generate` prerenders 9 routes (`/`, `/index.html`, `/200.html`, `/404.html`, `/login`, `/register`, `/cart`, `/checkout`, `/orders`) and writes `storefront/.output/public`.
 
 **4.2** Format, then validate and test every root and module. The loop is the same as in `ci/github-actions.yml`:
 
@@ -233,7 +243,7 @@ for dir in terraform/bootstrap terraform/environments/dev terraform/modules/*; d
 done
 ```
 
-Expect 66 passed runs in total: bootstrap 2, the dev root 8, and 56 across the 14 modules. `init -backend=false` leaves the dev root's S3 backend from step 2 untouched.
+Expect 66 passed runs in total: bootstrap 2, the dev root 8, and 56 across the 14 modules. `init -backend=false` leaves the dev root's S3 backend from step 2 untouched. The dev root's tests set `run_db_init = false`, so the mocked apply does not call `scripts/run-db-init.sh`.
 
 **4.3** Optional: lint and security scan:
 
@@ -246,7 +256,7 @@ uvx checkov --config-file terraform/.checkov.yaml -d terraform
 > [!NOTE]
 > `--config` must be an absolute path, which is why the command uses `$PWD`. With `--recursive`, TFLint ignores a relative path without warning and skips the AWS rules.
 
-Expect `Passed checks: 441, Failed checks: 0`. The accepted lab findings are skipped in `terraform/.checkov.yaml`, each with a reason.
+Expect `Passed checks: 449, Failed checks: 0`. The accepted lab findings are skipped in `terraform/.checkov.yaml`, each with a reason.
 
 **4.4** The release checker and the build script, with stubs and a dry run:
 
@@ -255,13 +265,93 @@ python3 scripts/test_check_release.py
 DRY_RUN=1 bash scripts/build-push.sh v1
 ```
 
-The test runs `check-release.sh` against command stubs (4 tests, no AWS or HTTP). The dry run prints the seven `docker buildx build --platform linux/arm64 ... --push` commands with placeholder repository URLs.
+The test runs `check-release.sh` against command stubs (4 tests, no AWS or HTTP). The dry run prints the seven `docker buildx build --platform linux/arm64 ... --push` commands with placeholder repository URLs. `DRY_RUN` accepts only `1` (or unset); any other value fails before anything runs.
 
 <details>
 <summary>Sample output</summary>
 
 ```text
-TODO: paste from live run
+$ go -C app test ./...
+?   	github.com/minhngoc2/learning-devops/lesson14/cmd/cart	[no test files]
+?   	github.com/minhngoc2/learning-devops/lesson14/cmd/db-init	[no test files]
+ok  	github.com/minhngoc2/learning-devops/lesson14/cmd/localbus	1.353s
+?   	github.com/minhngoc2/learning-devops/lesson14/cmd/notification	[no test files]
+?   	github.com/minhngoc2/learning-devops/lesson14/cmd/order	[no test files]
+?   	github.com/minhngoc2/learning-devops/lesson14/cmd/payment	[no test files]
+?   	github.com/minhngoc2/learning-devops/lesson14/cmd/product	[no test files]
+?   	github.com/minhngoc2/learning-devops/lesson14/cmd/user	[no test files]
+ok  	github.com/minhngoc2/learning-devops/lesson14/internal/cart	0.531s
+ok  	github.com/minhngoc2/learning-devops/lesson14/internal/config	0.511s
+ok  	github.com/minhngoc2/learning-devops/lesson14/internal/dbinit	0.505s
+ok  	github.com/minhngoc2/learning-devops/lesson14/internal/events	1.131s
+ok  	github.com/minhngoc2/learning-devops/lesson14/internal/httpx	(cached)
+ok  	github.com/minhngoc2/learning-devops/lesson14/internal/ids	0.924s
+ok  	github.com/minhngoc2/learning-devops/lesson14/internal/notification	0.895s
+ok  	github.com/minhngoc2/learning-devops/lesson14/internal/order	0.920s
+ok  	github.com/minhngoc2/learning-devops/lesson14/internal/payment	0.870s
+ok  	github.com/minhngoc2/learning-devops/lesson14/internal/pg	0.872s
+ok  	github.com/minhngoc2/learning-devops/lesson14/internal/product	0.399s
+ok  	github.com/minhngoc2/learning-devops/lesson14/internal/user	0.401s
+
+$ pnpm --dir storefront generate
+...
+[nitro] ℹ Prerendering 9 initial routes with crawler
+[nitro]   ├─ /login (23ms)
+[nitro]   ├─ /orders (23ms)
+[nitro]   ├─ /checkout (23ms)
+[nitro]   ├─ /cart (24ms)
+[nitro]   ├─ /register (24ms)
+[nitro]   ├─ /200.html (24ms)
+[nitro]   ├─ /404.html (24ms)
+[nitro]   ├─ / (24ms)
+[nitro]   ├─ /index.html (24ms)
+[nitro] ℹ Prerendered 9 routes in 0.535 seconds
+[nitro] ✔ Generated public .output/public
+
+$ terraform fmt -check -recursive terraform && (the validate/test loop, last line of each)
+terraform/bootstrap               Success! 2 passed, 0 failed.
+terraform/environments/dev        Success! 8 passed, 0 failed.
+terraform/modules/alb-internal    Success! 4 passed, 0 failed.
+terraform/modules/api-gateway     Success! 4 passed, 0 failed.
+terraform/modules/cognito         Success! 3 passed, 0 failed.
+terraform/modules/dynamodb-table  Success! 4 passed, 0 failed.
+terraform/modules/ecr             Success! 3 passed, 0 failed.
+terraform/modules/ecs-cluster     Success! 2 passed, 0 failed.
+terraform/modules/ecs-service     Success! 6 passed, 0 failed.
+terraform/modules/messaging       Success! 4 passed, 0 failed.
+terraform/modules/network         Success! 5 passed, 0 failed.
+terraform/modules/observability   Success! 4 passed, 0 failed.
+terraform/modules/rds-postgres    Success! 6 passed, 0 failed.
+terraform/modules/s3-cloudfront   Success! 5 passed, 0 failed.
+terraform/modules/state-bucket    Success! 3 passed, 0 failed.
+terraform/modules/waf             Success! 3 passed, 0 failed.
+
+$ tflint --chdir=terraform --recursive --config="$PWD/terraform/.tflint.hcl"
+(no output, exit 0)
+
+$ uvx checkov --config-file terraform/.checkov.yaml -d terraform
+terraform scan results:
+Passed checks: 449, Failed checks: 0, Skipped checks: 0
+
+$ python3 scripts/test_check_release.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 13.180s
+
+OK
+
+$ DRY_RUN=1 bash scripts/build-push.sh v1
+docker buildx build --platform linux/arm64 --build-arg SERVICE=user -t 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/lesson14/user:v1 --push /…/lesson14/app
+… (six more: product, cart, order, payment, notification, db-init)
+
+IMAGE          URI
+user           123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/lesson14/user:v1
+product        123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/lesson14/product:v1
+cart           123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/lesson14/cart:v1
+order          123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/lesson14/order:v1
+payment        123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/lesson14/payment:v1
+notification   123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/lesson14/notification:v1
+db-init        123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/lesson14/db-init:v1
 ```
 
 </details>
@@ -311,7 +401,7 @@ Read the plan. Expect `<N> to add` (TODO: fill in from the live run). In the pla
 tf apply dev.tfplan
 ```
 
-This takes a while; the RDS instance and the CloudFront distribution take the longest. Partway through, `terraform_data.db_init` runs the one-off `db-init` task (step 6 explains it) and the ECS services are created only after it succeeds. Terraform then waits until every service is stable, so a deployment that fails its health checks fails the apply. When it finishes, Terraform prints the outputs, including `cloudfront_url`. `apply` runs `scripts/run-db-init.sh`, so it needs `bash`, the AWS CLI and `AWS_REGION` in this terminal.
+This takes a while; the RDS instance and the CloudFront distribution take the longest. Partway through, `terraform_data.db_init` runs the one-off `db-init` task (step 6 explains it) and the ECS services are created only after it succeeds. Terraform then waits until every service is stable, so a deployment that fails its health checks fails the apply. When it finishes, Terraform prints the outputs, including `cloudfront_url`. `apply` runs `scripts/run-db-init.sh`, so it needs `bash`, the AWS CLI and `AWS_REGION` in this terminal. The `run_db_init` variable (default `true`) controls this; the mocked tests set it to `false` so no AWS CLI runs. Keep it `true` for a real deploy: on a first deploy without `db-init`, the database services cannot log in, never become stable, and the apply fails.
 
 **5.6** Confirm the emails, if you set them in step 2.3: two **AWS Notification - Subscription Confirmation** emails for `alarm_email`, and one SES verification email for `notify_from_email`. Click the link in each.
 
@@ -407,7 +497,7 @@ TODO: paste from live run
 
 ## 9. Verify
 
-**9.1** Set the variables that steps 9 to 11 use. Set them again if you open a new terminal (with `tf`, `EMAIL` and `PASSWORD`):
+**9.1** Set the variables that steps 9 to 11 use. Set them again if you open a new terminal (with `tf`, `EMAIL` and `PASSWORD`, then log in again in 9.3 to set `TOKEN` and `AUTH`):
 
 ```sh
 CF_URL="$(tf output -raw cloudfront_url)"
@@ -424,7 +514,7 @@ Open the CloudFront URL and:
 1. See the six products with their images (`/`).
 2. Log in with `$EMAIL` and `$PASSWORD` (`/login`).
 3. Add two products to the cart, change a quantity, and open the cart (`/cart`).
-4. Check out (`/checkout`). The order page (`/orders/<id>`) polls every 2 seconds while the order is `Pending payment`, then shows `Paid` and the payment.
+4. Check out (`/checkout`). The order page (`/orders/<id>`) polls every 2 seconds while the order is `Pending payment`, then shows `Paid` and the payment. It stops after 5 minutes (then asks you to refresh) or after 3 failed calls in a row. When your token expires, the next call sends you to `/login` and back to the page afterwards; a `403` (for example a WAF block) shows an error but keeps you logged in.
 5. Open `/orders` to see the order in your list.
 
 ### 9.3 With curl
@@ -441,7 +531,9 @@ AUTH="Authorization: Bearer $TOKEN"
 curl -s "$CF_URL/api/users/me" -H "$AUTH" | jq
 ```
 
-The token lasts 60 minutes. Log in again if later calls return `401`.
+The token lasts 60 minutes. If later calls return `401`, log in again: re-run the `TOKEN=` and `AUTH=` lines above, because `AUTH` holds the old token.
+
+Register is safe to retry: if a first attempt failed halfway (the Cognito user exists but has no profile yet), registering again with the same email finishes the sign-up and returns `201`. Once the profile exists, it returns `409`.
 
 **Products, cart and order:**
 
@@ -765,15 +857,18 @@ To run the lab again, start from step 1. The bucket name is free again, so boots
 | `aws …` prints nothing, but `aws … \| jq` works | The CLI pager takes over the output | `export AWS_PAGER=""` |
 | A script fails with `Set AWS_REGION to the deployed provider region.` | `AWS_REGION` is not exported in this terminal | `export AWS_REGION=ap-southeast-1` |
 | `init` doesn't print `configured the backend "s3"`, and `terraform.tfstate` appears in `environments/dev/` | `backend.tf` is missing or renamed, so Terraform uses local state | Restore `backend.tf`, then `tf init -backend-config=dev.backend.hcl -migrate-state` |
-| `build-push.sh` fails with `ecr_repository_urls has no entry for …` | The repositories don't exist yet | Run step 5.2 first |
+| `build-push.sh` fails with `Output "ecr_repository_urls" not found` (or `ecr_repository_urls has no entry for …`) | The repositories (and the dev state) don't exist yet | Run step 5.2 first |
 | `docker buildx` fails with `exec format error`, or has no `linux/arm64` platform | No ARM64 emulation on an x86 machine | `docker run --privileged --rm tonistiigi/binfmt --install arm64`, then build again |
 | Push fails with `tag invalid … cannot be overwritten because the repository is immutable` | That tag is already in ECR | Use a new tag (`v3`), and set the same `image_tag` |
 | Tasks stop with `CannotPullContainerError` | `image_tag` in `dev.tfvars` was never pushed | Push it with `build-push.sh <tag>`, or set the tag you pushed |
 | `user`, `product`, `order` or `payment` keep stopping; their log says `password authentication failed` | The roles were changed or dropped after `db-init` ran | Re-run `bash scripts/run-db-init.sh` (step 6.1), then `aws ecs update-service … --force-new-deployment` for that service |
 | `apply` fails at `terraform_data.db_init` with `db-init failed: …` | The `db-init` task could not reach RDS, or its image is missing | Read the log lines the script printed, fix, and apply again: the step re-runs |
-| `apply` fails with `waiting for ECS Service … to reach steady state` / `circuit breaker` | A service's new tasks fail their health checks | Read the service events and log, push a fixed tag, apply again |
+| `apply` fails with `waiting for ECS Service … to reach steady state` / `circuit breaker` | `wait_for_steady_state` is on: a service whose tasks fail their health checks fails the apply, on the first deploy too | Read the service events and log, push a fixed tag, apply again |
 | `check-release.sh` says `primary rollout is FAILED` or the image is the old tag | The circuit breaker rolled the release back | Read the service events (`aws ecs describe-services … --query 'services[0].events[:5]'`) and the service log, fix, push a new tag |
 | `seed.sh` or register returns `400` with a password message | The Cognito password policy rejected it | Use 8+ characters with upper case, lower case, a number and a symbol |
+| `POST /api/products` returns `400 currency must be VND` | Prices are VND only | Send `"currency": "VND"` |
+| `GET /api/products?ids=…` returns `400 too many ids (max 100)` | More than 100 distinct ids in one request | Split the request |
+| `build-push.sh` fails with `DRY_RUN must be 1 or unset` | `DRY_RUN` is set to something else (`yes`, `true`, …) | `unset DRY_RUN`, or `DRY_RUN=1` for a dry run |
 | The CloudFront URL returns `403` with an XML `AccessDenied` body | The storefront was never uploaded | Step 7 |
 | The old storefront still shows after an upload | CloudFront cached the old files | `aws cloudfront create-invalidation … --paths "/*"` (step 11.3) |
 | Every request to the site returns `403` | The WAF rate rule blocked your IP (step 10.4) | Wait a few minutes until your request rate falls below the limit |

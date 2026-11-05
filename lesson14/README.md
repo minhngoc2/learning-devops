@@ -2,12 +2,12 @@
 
 A small online shop split into six Go microservices on ECS Fargate, with a Nuxt storefront, Cognito sign-in, an event-driven order flow on SNS/SQS, PostgreSQL and DynamoDB, all behind one CloudFront distribution with WAF. Terraform deploys everything, with state in S3.
 
-![Go 1.27](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)
+![Go 1.27.3](https://img.shields.io/badge/Go-1.27.3-00ADD8?logo=go&logoColor=white)
 ![Nuxt 4](https://img.shields.io/badge/Nuxt-4-00DC82?logo=nuxt&logoColor=white)
 ![Terraform 1.10+](https://img.shields.io/badge/Terraform-%E2%89%A5%201.10-7B42BC?logo=terraform&logoColor=white)
-![go test 11 packages](https://img.shields.io/badge/go%20test-11%20packages-brightgreen)
+![go test 13 packages](https://img.shields.io/badge/go%20test-13%20packages-brightgreen)
 ![terraform test 66/66](https://img.shields.io/badge/terraform%20test-66%2F66-brightgreen)
-![checkov 441/441](https://img.shields.io/badge/checkov-441%2F441-brightgreen)
+![checkov 449/449](https://img.shields.io/badge/checkov-449%2F449-brightgreen)
 
 > [!NOTE]
 > This lesson is self-contained: it has its own `bootstrap` root for the state bucket and its own 14 modules, and it uses nothing from other lessons. Services have no public address. The only way in is CloudFront, and a secret header proves to the internal load balancer that a request came that way. Payment is asynchronous: an order is created as `PENDING_PAYMENT`, and events finish it.
@@ -27,7 +27,7 @@ A small online shop split into six Go microservices on ECS Fargate, with a Nuxt 
 | Edge | One CloudFront distribution: `/` from the storefront bucket, `/images/*` from the images bucket, `/api/*` to API Gateway (not cached). The WAF web ACL (us-east-1) runs the AWS Common and Known Bad Inputs rule sets and blocks any IP above 2,000 requests per 5 minutes |
 | API | API Gateway HTTP API, throttled to 50 req/s (burst 100), with JSON access logs. A Cognito JWT authorizer guards 9 of the 13 routes. Protected routes **overwrite** `X-Customer-Sub` and `X-Customer-Email` from the token, and public routes **remove** them, so services can trust both headers |
 | Origin check | CloudFront adds a secret `X-Origin-Verify` header. Every ALB listener rule needs the path **and** that header, and anything else gets `403 {"error":"forbidden"}`. That is why the raw `execute-api` URL is refused |
-| Services | `user`, `product`, `cart`, `order`, `payment`, `notification`: ARM64 Fargate tasks in private subnets, one task role each with only the permissions it needs, CPU autoscaling from 1 to 4 tasks, rolling deploys with circuit breaker and rollback. `db-init` is a one-off task (schemas, roles, grants) |
+| Services | `user`, `product`, `cart`, `order`, `payment`, `notification`: ARM64 Fargate tasks in private subnets, one task role each with only the permissions it needs, CPU autoscaling from 1 to 4 tasks, rolling deploys with circuit breaker and rollback; `terraform apply` waits for each service to be stable. `db-init` is a one-off task (schemas, roles, grants) that `terraform apply` runs before creating the services (`run_db_init`, default `true`) |
 | Data | One RDS PostgreSQL 17 instance (`db.t4g.micro`) with a schema and login role per service (`users`, `products`, `orders`, `payments`). The cart is a DynamoDB table with a 7-day TTL. Product images live in S3 |
 | Events | Order publishes `OrderCreated`. Payment consumes it and publishes `PaymentSucceeded` or `PaymentFailed`. Order and Notification consume the outcome. One SNS topic, one SQS queue per consumer with a filter on `event_type`, and a DLQ after 5 failed receives |
 | Identity | Cognito user pool with email sign-in. User Service registers and confirms customers and returns the tokens. The storefront sends the ID token as `Bearer` |
@@ -40,7 +40,7 @@ A small online shop split into six Go microservices on ECS Fargate, with a Nuxt 
 ```text
 app/                       Go module: six services, db-init, localbus; compose.yaml for a local run
 ├── cmd/                   One main.go per binary (one Dockerfile, --build-arg SERVICE=<name>)
-└── internal/              httpx, config, events, pg, and one package per service with its tests
+└── internal/              httpx, config, events, pg, ids, dbinit, and one package per service with its tests
 storefront/                Nuxt 4 static SPA (pnpm), uploaded to S3
 terraform/
 ├── bootstrap/             S3 state bucket (local state, run once)
@@ -57,12 +57,12 @@ All routes are under the CloudFront URL. 🔒 = needs `Authorization: Bearer <id
 
 | Request | Status | Body |
 | --- | --- | --- |
-| `POST /api/users/register` `{email,password,display_name}` | `201` | The customer. `409` `email already registered`. `400` when Cognito rejects the password |
-| `POST /api/users/login` `{email,password}` | `200` | `{id_token,access_token,refresh_token,expires_in}`. `401` `invalid credentials` |
+| `POST /api/users/register` `{email,password,display_name}` | `201` | The customer. `409` `email already registered` once the profile exists. A retry after a half-finished sign-up completes it and returns `201`. `400` when Cognito rejects the password |
+| `POST /api/users/login` `{email,password}` | `200` | `{id_token,access_token,refresh_token,expires_in}`. `401` `invalid credentials`, also for an empty email or password |
 | `GET /api/users/me` 🔒 | `200` | `{sub,email,display_name,created_at}` |
-| `GET /api/products[?ids=a,b][&category=c]` | `200` | List of products with `price_cents`, `currency` (`VND`) and `image_url` |
+| `GET /api/products[?ids=a,b][&category=c]` | `200` | List of products with `price_cents`, `currency` (`VND`) and `image_url`. `400` for more than 100 distinct `ids` |
 | `GET /api/products/{id}` | `200` | One product. `404` `product not found` |
-| `POST /api/products` 🔒 | `201` | Seed/demo only. `409` for an existing id |
+| `POST /api/products` 🔒 | `201` | Seed/demo only. `409` for an existing id. `400` `currency must be VND` |
 | `GET /api/cart` 🔒 | `200` | `{customer_sub,items:[{product_id,quantity}],updated_at}` |
 | `PUT /api/cart/items/{productId}` 🔒 `{quantity}` | `200` | The cart. `0` removes the line. `400` outside 0–99 |
 | `DELETE /api/cart` 🔒 | `204` | Empty |
@@ -90,9 +90,9 @@ Payment uses a fixed demo rule: a total whose cents end in `99` is declined with
 
 | Check | Result |
 | --- | --- |
-| Go | `go test ./...` passes for 11 packages |
-| Storefront | `pnpm generate` prerenders 9 routes into `storefront/.output/public` |
-| Static checks | `fmt`, `validate` and TFLint clean. Checkov 441 passed, 0 failed |
+| Go | `go test ./...` passes for 13 packages (the `cmd/*` service mains have no tests) |
+| Storefront | `nuxi typecheck` clean; `pnpm generate` prerenders 9 routes into `storefront/.output/public` |
+| Static checks | `fmt`, `validate` and TFLint clean. Checkov 449 passed, 0 failed |
 | `terraform test` (mocked AWS) | 66 passed: bootstrap 2, dev root 8, modules 56 |
 | Release check | `python3 scripts/test_check_release.py`: 4 tests pass with command stubs |
 | Deploy | TODO: from the live run |
@@ -106,7 +106,7 @@ Payment uses a fixed demo rule: a total whose cents end in `99` is declined with
 - **CLOUDFRONT-scope WAF lives in us-east-1, and so do its metrics.** A CloudWatch alarm can notify only a topic in its own region, so the WAF alarm has its own ops topic in us-east-1, and `alarm_email` gets two confirmation emails.
 - **No `custom_error_response` on the distribution.** It applies to every behaviour, so it would turn API `403`/`404` responses and WAF blocks into the storefront page. A CloudFront Function rewrites SPA paths to `/index.html` instead.
 - **Identity headers must be set by the gateway, never by the client.** Protected integrations overwrite `X-Customer-Sub`/`X-Customer-Email` from the JWT, and public ones remove them.
-- **The first deploy needs images before services.** ECR tags are immutable and the services reference `:<image_tag>`, so the repositories are created with a targeted apply, the images are pushed, and then the full stack is applied.
+- **The first deploy needs images before services.** ECR tags are immutable and the services reference `:<image_tag>`, so the repositories are created with a targeted apply, the images are pushed, and then the full stack is applied. That apply runs `db-init` before the services exist, so they find their roles on first start.
 - **Autoscaling owns the task count.** `ecs-service` ignores `desired_count` after creation, so the scenario demos can pause a service without Terraform undoing it. Restore the scalable target afterwards, or the next plan shows drift.
 - **TFLint `--config` must be absolute.** With `--recursive`, a relative path silently falls back to the default rules and skips the AWS checks.
 
