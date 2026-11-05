@@ -1,15 +1,15 @@
 # AGENTS.md
 
-Learning repository of independent DevOps lessons. There is **no root build, test, lint, package manager, or CI**: each `lessonN/` is its own project, so `cd` into the lesson before running commands. Root README is Vietnamese; early lessons are Vietnamese notes, lessons 10–13 are English. Match the language of the file you edit.
+Learning repository of independent DevOps lessons. There is **no root build, test, lint, package manager, or CI**: each `lessonN/` is its own project, so `cd` into the lesson before running commands. Root README is Vietnamese; early lessons are Vietnamese notes, lessons 10–14 are English. Match the language of the file you edit.
 
 ## Layout
 
 - `lesson1`, `lesson3`–`lesson8`: notes, small scripts, Dockerfiles, and diagram sources (`.excalidraw` / HTML / PNG). No test suite.
-- `lesson10-11`, `lesson12`, `lesson13`, `lesson12-13`: the substantial labs. Shared shape: `app/`, `terraform/environments/dev/`, `terraform/modules/*`, `quickstart.md`, per-module README.
-- `docs/` and `.archify/` in these lessons are local, gitignored notes. In `lesson10-11`, `lesson13` and `lesson12-13`, `*.md` is also ignored except `README.md`, `quickstart.md`, and module READMEs, so new markdown there will not appear in `git status`.
+- `lesson10-11`, `lesson12`, `lesson13`, `lesson12-13`, `lesson14`: the substantial labs. Shared shape: `app/`, `terraform/environments/dev/`, `terraform/modules/*`, `quickstart.md`, per-module README.
+- `docs/` and `.archify/` in these lessons are local, gitignored notes. In `lesson10-11`, `lesson13`, `lesson12-13` and `lesson14`, `*.md` is also ignored except `README.md`, `quickstart.md`, and module READMEs, so new markdown there will not appear in `git status`.
 - The quickstarts are the source of truth for per-lesson setup, expected output counts, deploy, and cleanup. Read the relevant one before changing infrastructure.
 
-## Terraform (lessons 10–11, 12, 13, 12-13)
+## Terraform (lessons 10–11, 12, 13, 12-13, 14)
 
 All roots require Terraform `>= 1.10, < 2.0` and AWS provider `~> 6.0`.
 
@@ -29,15 +29,17 @@ terraform -chdir=terraform/environments/dev plan -var-file=dev.tfvars
 - TFLint `--config` must be absolute. Use `--config="$PWD/terraform/.tflint.hcl"`: with `--recursive`, a relative path silently falls back to default rules and skips AWS checks.
 - checkov runs via `uvx checkov --config-file terraform/.checkov.yaml -d terraform`. Accepted lab findings and their reasons live in `.checkov.yaml`; read it before "fixing" a finding.
 - State: `lesson10-11`, `lesson13` and `lesson12-13` use their own bootstrap-created S3 backend (`lesson13` builds its bucket with the reusable `modules/state-bucket`; init dev with `-backend-config=dev.backend.hcl`, or `-backend=false` for offline checks). `lesson12` defaults to local state, with an opt-in S3 backend (`backend.tf.example` + `dev.backend.hcl.example`, both copies gitignored) that reuses the lesson10-11 bucket. Never commit `*.tfstate*`, plans, `*.tfvars`, or `*.backend.hcl`; copy the provided `*.example` files. Commit the `.terraform.lock.hcl` files for roots only. Module lock files created by tests are gitignored.
-- Do not run `apply`, `destroy`, or any AWS-mutating command unless the user explicitly asks. Plans create billable resources; review before confirming.
+- `lesson14`: a `bootstrap` root, `environments/dev` (S3 backend, `-backend-config=dev.backend.hcl`) and 14 modules. 66 mocked test runs: `bootstrap` 2, dev root 8, modules 56. Run them all with `for dir in terraform/bootstrap terraform/environments/dev terraform/modules/*; do terraform -chdir="$dir" init -backend=false -input=false && terraform -chdir="$dir" validate && terraform -chdir="$dir" test; done` (quickstart step 4.2; the same loop as `ci/github-actions.yml`). checkov uses `terraform/.checkov.yaml` (449 passed, 0 failed; every skip has a reason). `apply` runs `scripts/run-db-init.sh` through `terraform_data.db_init` (`local-exec`; needs bash, the AWS CLI and `AWS_REGION`). The `run_db_init` variable (default `true`) turns it off, and the dev root's tests set it to `false`. The first deploy has two steps: `apply -target=module.ecr`, push the images, then the full apply.
+- Do not run `apply`, `destroy`, or any AWS-mutating command unless the user explicitly asks. Plans create billable resources; review before confirming. In `lesson14` this also covers `scripts/build-push.sh` (except `DRY_RUN=1`), `run-db-init.sh`, `seed.sh` and `check-release.sh`, which call AWS.
 
 ## Apps
 
-- Go labs (`lesson10-11`, `lesson13`): `go -C app test ./...`; single test with `go -C app test -run TestName ./...`.
+- Go labs (`lesson10-11`, `lesson13`, `lesson14`): `go -C app test ./...`; single test with `go -C app test -run TestName ./...`.
 - `lesson10-11`: the Fargate task is ARM64, so build images with `docker buildx build --platform linux/arm64`. Image tags are immutable; the pushed tag must match `image_tag` in `dev.tfvars`. `scripts/check-release.sh` checks a live deployment and calls AWS. Its offline test, `python3 scripts/test_check_release.py`, uses stubs and makes no AWS calls.
 - `lesson12`: the active app is `nuxt-app/` (Nuxt 4, pnpm): `pnpm --dir nuxt-app install --frozen-lockfile`, then `pnpm --dir nuxt-app dev` or `generate`. `app/` is an archived React/Vite demo — do not follow its npm commands for deployment. Publishing uploads `nuxt-app/.output/public/`; `public/_nuxt/` is reserved for generated assets.
 - `lesson13`: Lambda runs `build/bootstrap` on `provided.al2023`/arm64. Build with `GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go -C app build -tags lambda.norpc -trimpath -o ../build/bootstrap .`; `build/` is gitignored. The binary name and `GOARCH` must match the module configuration.
 - `lesson12-13`: Python 3.13 Lambda (`handler.lambda_handler`, 1024 MB) reading DynamoDB. No build step: Terraform zips `app/handler.py`, and `boto3` comes from the runtime. Unit tests: `python3 -m unittest discover -s app` (fake table, no AWS). 16 mocked test runs: dev root 8, `modules/dynamodb-table` 3, `modules/state-bucket` 3, `bootstrap` 2.
+- `lesson14`: six Go services plus `db-init` and `localbus` share one module in `app/`: `go -C app test ./...` (13 packages have tests). The storefront is `storefront/` (Nuxt 4, pnpm): `pnpm --dir storefront install --frozen-lockfile`, then `pnpm --dir storefront dev` or `generate` (output in `storefront/.output/public`). Local run: `docker compose -f app/compose.yaml up --build -d` (Postgres, dynamodb-local, `localbus`, a Caddy router on `:8000`). It uses `AUTH_MODE=local`, so callers send `X-Customer-Sub`/`X-Customer-Email` themselves. `scripts/build-push.sh <tag>` builds all seven `linux/arm64` images and pushes immutable tags, which must match `image_tag` in `dev.tfvars`. `DRY_RUN=1` prints the commands without AWS. `python3 scripts/test_check_release.py` tests `check-release.sh` offline with stubs (4 tests).
 
 ## Verification order
 
