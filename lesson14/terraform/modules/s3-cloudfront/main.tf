@@ -82,6 +82,14 @@ resource "aws_cloudfront_function" "spa" {
   code    = file("${path.module}/function.js")
 }
 
+resource "aws_cloudfront_function" "images_prefix" {
+  name    = "${var.name}-images-prefix"
+  runtime = "cloudfront-js-2.0"
+  comment = "Strip the leading /images so /images/products/x maps to the products/x object"
+  publish = true
+  code    = file("${path.module}/images-function.js")
+}
+
 data "aws_cloudfront_cache_policy" "caching_optimized" {
   name = "Managed-CachingOptimized"
 }
@@ -155,6 +163,11 @@ resource "aws_cloudfront_distribution" "this" {
     cache_policy_id        = data.aws_cloudfront_cache_policy.caching_optimized.id
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.images_prefix.arn
+    }
   }
 
   ordered_cache_behavior {

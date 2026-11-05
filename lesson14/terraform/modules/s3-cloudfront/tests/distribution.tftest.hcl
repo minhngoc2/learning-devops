@@ -13,10 +13,20 @@ mock_provider "aws" {
       domain_name = "d111111abcdef8.cloudfront.net"
     }
   }
-  mock_resource "aws_cloudfront_function" {
-    defaults = {
-      arn = "arn:aws:cloudfront::111111111111:function/lesson14-dev-spa-fallback"
-    }
+}
+
+# Distinct function ARNs, so the behaviour assertions can tell the two functions apart.
+override_resource {
+  target = aws_cloudfront_function.spa
+  values = {
+    arn = "arn:aws:cloudfront::111111111111:function/lesson14-dev-spa-fallback"
+  }
+}
+
+override_resource {
+  target = aws_cloudfront_function.images_prefix
+  values = {
+    arn = "arn:aws:cloudfront::111111111111:function/lesson14-dev-images-prefix"
   }
 }
 
@@ -145,5 +155,35 @@ run "buckets_private" {
       output.domain_name == "d111111abcdef8.cloudfront.net"
     )
     error_message = "Bucket names are <name>-<role>-<account id>; domain_name is the distribution's."
+  }
+}
+
+run "images_behaviour_strips_prefix" {
+  command = apply # function ARNs are only known after (mocked) apply
+
+  assert {
+    condition = alltrue([
+      for b in aws_cloudfront_distribution.this.ordered_cache_behavior :
+      length(b.function_association) == 1 &&
+      one(b.function_association).event_type == "viewer-request" &&
+      one(b.function_association).function_arn == aws_cloudfront_function.images_prefix.arn
+      if b.path_pattern == "/images/*"
+    ])
+    error_message = "/images/* must run exactly one viewer-request function: the images prefix function."
+  }
+  assert {
+    condition = (
+      one(one(aws_cloudfront_distribution.this.default_cache_behavior).function_association).function_arn == aws_cloudfront_function.spa.arn &&
+      aws_cloudfront_function.spa.arn != aws_cloudfront_function.images_prefix.arn
+    )
+    error_message = "The default behaviour must still run the SPA function."
+  }
+  assert {
+    condition = (
+      aws_cloudfront_function.images_prefix.runtime == "cloudfront-js-2.0" &&
+      aws_cloudfront_function.images_prefix.name == "lesson14-dev-images-prefix" &&
+      strcontains(aws_cloudfront_function.images_prefix.code, "/images")
+    )
+    error_message = "The images function must be a cloudfront-js-2.0 function named <name>-images-prefix that handles /images."
   }
 }
