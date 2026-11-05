@@ -2,16 +2,16 @@
 mock_provider "aws" {}
 
 variables {
-  name                      = "lesson14-dev-user"
-  cluster_id                = "arn:aws:ecs:ap-southeast-1:111111111111:cluster/lesson14-dev"
-  cluster_name              = "lesson14-dev"
-  vpc_id                    = "vpc-0123456789abcdef0"
-  subnet_ids                = ["subnet-0123456789abcdef0", "subnet-0123456789abcdef1"]
-  image                     = "111111111111.dkr.ecr.ap-southeast-1.amazonaws.com/lesson14/user:v1"
-  target_group_arn          = "arn:aws:elasticloadbalancing:ap-southeast-1:111111111111:targetgroup/l14-dev-user/0123456789abcdef"
-  ingress_security_group_id = "sg-0a1b2c3d4e5f60001"
-  environment               = { PORT = "8080" }
-  secrets                   = { DB_PASSWORD = "arn:aws:secretsmanager:ap-southeast-1:111111111111:secret:lesson14-dev-db-AbCdEf:password::" }
+  name                       = "lesson14-dev-user"
+  cluster_id                 = "arn:aws:ecs:ap-southeast-1:111111111111:cluster/lesson14-dev"
+  cluster_name               = "lesson14-dev"
+  vpc_id                     = "vpc-0123456789abcdef0"
+  subnet_ids                 = ["subnet-0123456789abcdef0", "subnet-0123456789abcdef1"]
+  image                      = "111111111111.dkr.ecr.ap-southeast-1.amazonaws.com/lesson14/user:v1"
+  target_group_arn           = "arn:aws:elasticloadbalancing:ap-southeast-1:111111111111:targetgroup/l14-dev-user/0123456789abcdef"
+  ingress_security_group_ids = { alb = "sg-0a1b2c3d4e5f60001" }
+  environment                = { PORT = "8080" }
+  secrets                    = { DB_PASSWORD = "arn:aws:secretsmanager:ap-southeast-1:111111111111:secret:lesson14-dev-db-AbCdEf:password::" }
 }
 
 run "web_service_behind_alb" {
@@ -29,10 +29,10 @@ run "web_service_behind_alb" {
   }
   assert {
     condition = (
-      length(aws_vpc_security_group_ingress_rule.this) == 1 &&
-      aws_vpc_security_group_ingress_rule.this[0].referenced_security_group_id == var.ingress_security_group_id &&
-      aws_vpc_security_group_ingress_rule.this[0].from_port == 8080 &&
-      aws_vpc_security_group_ingress_rule.this[0].to_port == 8080
+      keys(aws_vpc_security_group_ingress_rule.this) == ["alb"] &&
+      aws_vpc_security_group_ingress_rule.this["alb"].referenced_security_group_id == "sg-0a1b2c3d4e5f60001" &&
+      aws_vpc_security_group_ingress_rule.this["alb"].from_port == 8080 &&
+      aws_vpc_security_group_ingress_rule.this["alb"].to_port == 8080
     )
     error_message = "The task SG must allow the container port only from the ALB SG."
   }
@@ -42,9 +42,10 @@ run "web_service_behind_alb" {
       aws_ecs_service.this[0].deployment_minimum_healthy_percent == 100 &&
       aws_ecs_service.this[0].deployment_maximum_percent == 200 &&
       one(aws_ecs_service.this[0].deployment_circuit_breaker).enable &&
-      one(aws_ecs_service.this[0].deployment_circuit_breaker).rollback
+      one(aws_ecs_service.this[0].deployment_circuit_breaker).rollback &&
+      aws_ecs_service.this[0].wait_for_steady_state
     )
-    error_message = "Rolling deploys at 100/200 % with circuit-breaker rollback."
+    error_message = "Rolling deploys at 100/200 % with circuit-breaker rollback; apply waits for a steady state by default."
   }
   assert {
     condition = (
@@ -74,9 +75,10 @@ run "web_service_behind_alb" {
 run "worker_without_alb" {
   command = plan
   variables {
-    name                      = "lesson14-dev-notification"
-    target_group_arn          = null
-    ingress_security_group_id = null
+    name                       = "lesson14-dev-notification"
+    target_group_arn           = null
+    ingress_security_group_ids = {}
+    wait_for_steady_state      = false
   }
 
   assert {
@@ -84,19 +86,20 @@ run "worker_without_alb" {
       length(aws_vpc_security_group_ingress_rule.this) == 0 &&
       length(aws_ecs_service.this[0].load_balancer) == 0 &&
       aws_ecs_service.this[0].health_check_grace_period_seconds == null &&
-      aws_vpc_security_group_egress_rule.all.cidr_ipv4 == "0.0.0.0/0"
+      aws_vpc_security_group_egress_rule.all.cidr_ipv4 == "0.0.0.0/0" &&
+      !aws_ecs_service.this[0].wait_for_steady_state
     )
-    error_message = "A worker has no ingress rule, no load balancer and no grace period, but keeps egress."
+    error_message = "A worker has no ingress rule, no load balancer and no grace period, but keeps egress; wait_for_steady_state = false reaches the service."
   }
 }
 
 run "task_definition_only" {
   command = plan
   variables {
-    name                      = "lesson14-dev-db-init"
-    create_service            = false
-    target_group_arn          = null
-    ingress_security_group_id = null
+    name                       = "lesson14-dev-db-init"
+    create_service             = false
+    target_group_arn           = null
+    ingress_security_group_ids = {}
   }
 
   assert {

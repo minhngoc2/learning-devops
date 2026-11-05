@@ -18,7 +18,7 @@ module "cluster" {
 module "ecr" {
   source = "../../modules/ecr"
 
-  names        = [for s in setunion(local.services, ["db-init"]) : "${var.project}/${s}"]
+  names        = [for s in local.all_task_names : "${var.project}/${s}"]
   force_delete = var.force_destroy
 }
 
@@ -77,17 +77,13 @@ module "waf" {
   alarm_email = var.alarm_email
 }
 
-locals {
-  web_acl_arn = module.waf.web_acl_arn # attached to the distribution: HTTP APIs cannot carry WAF themselves
-}
-
 module "edge" {
   source = "../../modules/s3-cloudfront"
 
   name                 = local.name
   api_host             = module.api.api_host
   origin_verify_secret = random_password.origin_verify.result
-  web_acl_arn          = local.web_acl_arn
+  web_acl_arn          = module.waf.web_acl_arn # on the distribution: HTTP APIs cannot carry WAF themselves
   force_destroy        = var.force_destroy
 }
 
@@ -101,7 +97,7 @@ module "observability" {
   cluster_name              = module.cluster.cluster_name
   service_names             = { for k, s in module.service : k => s.service_name }
   desired_counts            = { for k in local.services : k => var.desired_count }
-  db_identifier             = local.name # rds-postgres uses its name as the instance identifier
+  db_identifier             = module.rds.identifier
   db_max_connections        = module.rds.max_connections_estimate
   dlq_names                 = module.messaging.dlq_names
   api_id                    = module.api.api_id

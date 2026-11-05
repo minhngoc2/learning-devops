@@ -125,6 +125,11 @@ mock_provider "aws" {
   }
 }
 
+# terraform_data.db_init would run scripts/run-db-init.sh (AWS CLI) on every mocked apply.
+variables {
+  run_db_init = false
+}
+
 run "six_services_and_db_init" {
   command = apply
 
@@ -138,6 +143,14 @@ run "six_services_and_db_init" {
   assert {
     condition     = module.db_init.service_name == null && module.db_init.scalable_target_resource_id == null && module.db_init.task_definition_arn != null
     error_message = "db-init must be a task definition only, with no ECS service or autoscaling."
+  }
+  assert {
+    condition = (
+      terraform_data.db_init.triggers_replace == [module.db_init.task_definition_arn] &&
+      output.db_init_log_group_name == "/ecs/lesson14-dev-db-init" &&
+      output.db_init_log_group_name == module.db_init.log_group_name
+    )
+    error_message = "terraform_data.db_init must run db-init during apply, re-running when its task definition changes."
   }
   assert {
     condition = (
@@ -206,10 +219,11 @@ run "db_ingress_only_from_db_services_and_db_init" {
 
   assert {
     condition = (
-      toset(keys(aws_vpc_security_group_ingress_rule.db_from_service)) == toset(["user", "product", "order", "payment", "db-init"]) &&
-      alltrue([for r in aws_vpc_security_group_ingress_rule.db_from_service :
+      toset(keys(aws_vpc_security_group_ingress_rule.db_from_service)) == toset(["user", "product", "order", "payment"]) &&
+      alltrue([for r in concat(values(aws_vpc_security_group_ingress_rule.db_from_service), [aws_vpc_security_group_ingress_rule.db_from_db_init]) :
         r.security_group_id == module.rds.security_group_id && r.cidr_ipv4 == null && r.referenced_security_group_id != null &&
-      r.from_port == 5432 && r.to_port == 5432])
+      r.from_port == 5432 && r.to_port == 5432]) &&
+      aws_vpc_security_group_ingress_rule.db_from_db_init.referenced_security_group_id == module.db_init.security_group_id
     )
     error_message = "The RDS SG may accept 5432 only from the four DB services' SGs and db-init's SG, never from a CIDR."
   }
@@ -235,8 +249,16 @@ run "waf_attached_to_distribution" {
     error_message = "The web ACL must be created through the us-east-1 provider."
   }
   assert {
-    condition     = local.web_acl_arn == module.waf.web_acl_arn
+    condition     = module.edge.web_acl_id == module.waf.web_acl_arn
     error_message = "The CloudFront distribution must use the WAF web ACL."
+  }
+  assert {
+    condition = (
+      toset(keys(module.edge.bucket_public_access_blocks)) == toset(["storefront", "images"]) &&
+      alltrue([for b in values(module.edge.bucket_public_access_blocks) :
+      b.block_public_acls && b.block_public_policy && b.ignore_public_acls && b.restrict_public_buckets])
+    )
+    error_message = "Both CloudFront buckets (storefront and images) must block all public access."
   }
 }
 

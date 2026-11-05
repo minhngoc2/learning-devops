@@ -311,7 +311,7 @@ Read the plan. Expect `<N> to add` (TODO: fill in from the live run). In the pla
 tf apply dev.tfplan
 ```
 
-This takes a while; the RDS instance and the CloudFront distribution take the longest. When it finishes, Terraform prints the outputs, including `cloudfront_url`.
+This takes a while; the RDS instance and the CloudFront distribution take the longest. Partway through, `terraform_data.db_init` runs the one-off `db-init` task (step 6 explains it) and the ECS services are created only after it succeeds. Terraform then waits until every service is stable, so a deployment that fails its health checks fails the apply. When it finishes, Terraform prints the outputs, including `cloudfront_url`. `apply` runs `scripts/run-db-init.sh`, so it needs `bash`, the AWS CLI and `AWS_REGION` in this terminal.
 
 **5.6** Confirm the emails, if you set them in step 2.3: two **AWS Notification - Subscription Confirmation** emails for `alarm_email`, and one SES verification email for `notify_from_email`. Click the link in each.
 
@@ -333,27 +333,17 @@ TODO: paste from live run
 
 ## 6. Initialize the database
 
-The services that use PostgreSQL (`user`, `product`, `order`, `payment`) log in as their own role, `svc_<service>`, with a password from Secrets Manager. Those roles and their schemas don't exist until the one-off `db-init` task creates them, so until then those four services fail at startup. That is expected.
+The services that use PostgreSQL (`user`, `product`, `order`, `payment`) log in as their own role, `svc_<service>`, with a password from Secrets Manager. The one-off `db-init` task creates those roles and their schemas, and the services would fail at startup without them.
 
-**6.1** Run `db-init`. The script starts the task with the `db_init_run_command` output, waits for it to stop, prints its last log lines, and fails unless it exited 0:
+**6.1** You don't run anything for this on a normal deploy: `terraform apply` in step 5.5 already ran `db-init`. `terraform_data.db_init` calls `scripts/run-db-init.sh` before any ECS service is created, and again whenever the `db-init` task definition changes (a new `image_tag`). The script starts the task, waits for it to stop, prints its last log lines, and fails the apply unless the task exited 0. In the apply output, look for `db-init completed (exit 0).`
+
+To re-run it by hand, for example after you changed the database by hand, run the same script. It reads the dev root's outputs, and `db-init` is idempotent, so running it again is safe:
 
 ```sh
 bash scripts/run-db-init.sh
 ```
 
-It ends with `db-init completed (exit 0).` `db-init` is idempotent: running it again is safe.
-
-**6.2** Restart the four database services. Their first deployment may have failed while the roles were missing, and the circuit breaker then stops launching tasks because it has no earlier working deployment to roll back to:
-
-```sh
-CLUSTER="$(tf output -raw cluster_name)"
-for svc in user product order payment; do
-  aws ecs update-service --cluster "$CLUSTER" --service "lesson14-dev-$svc" \
-    --force-new-deployment --query 'service.serviceName' --output text
-done
-```
-
-**6.3** Wait until all six services run `v1`, and check the entry path. `check-release.sh` waits for each service to be stable, checks that the primary deployment is `COMPLETED` on the expected image, that `GET /api/products` through CloudFront returns `200`, and that the raw `execute-api` URL returns `403`:
+**6.2** Wait until all six services run `v1`, and check the entry path. `check-release.sh` waits for each service to be stable, checks that the primary deployment is `COMPLETED` on the expected image, that `GET /api/products` through CloudFront returns `200`, and that the raw `execute-api` URL returns `403`:
 
 ```sh
 bash scripts/check-release.sh v1
@@ -673,7 +663,7 @@ tf apply dev.tfplan
 bash scripts/check-release.sh v2
 ```
 
-The plan should only replace the task definitions (the image tag changes) and update the services that use them. TODO: fill in the counts from the live run. `check-release.sh` fails if any service is not stable, its primary deployment is not `COMPLETED`, or its image is not `:v2`, which is what you see after a rollback.
+The plan should only replace the task definitions (the image tag changes), replace `terraform_data.db_init` (so `db-init` runs the new image before the services roll), and update the services that use them. TODO: fill in the counts from the live run. `check-release.sh` fails if any service is not stable, its primary deployment is not `COMPLETED`, or its image is not `:v2`, which is what you see after a rollback.
 
 **11.3** Storefront changes don't need Terraform. Generate and upload again, then invalidate the CloudFront cache so viewers get the new files:
 
@@ -779,7 +769,9 @@ To run the lab again, start from step 1. The bucket name is free again, so boots
 | `docker buildx` fails with `exec format error`, or has no `linux/arm64` platform | No ARM64 emulation on an x86 machine | `docker run --privileged --rm tonistiigi/binfmt --install arm64`, then build again |
 | Push fails with `tag invalid … cannot be overwritten because the repository is immutable` | That tag is already in ECR | Use a new tag (`v3`), and set the same `image_tag` |
 | Tasks stop with `CannotPullContainerError` | `image_tag` in `dev.tfvars` was never pushed | Push it with `build-push.sh <tag>`, or set the tag you pushed |
-| `user`, `product`, `order` or `payment` keep stopping; their log says `password authentication failed` | `db-init` hasn't run yet | Step 6, including the restart in 6.2 |
+| `user`, `product`, `order` or `payment` keep stopping; their log says `password authentication failed` | The roles were changed or dropped after `db-init` ran | Re-run `bash scripts/run-db-init.sh` (step 6.1), then `aws ecs update-service … --force-new-deployment` for that service |
+| `apply` fails at `terraform_data.db_init` with `db-init failed: …` | The `db-init` task could not reach RDS, or its image is missing | Read the log lines the script printed, fix, and apply again: the step re-runs |
+| `apply` fails with `waiting for ECS Service … to reach steady state` / `circuit breaker` | A service's new tasks fail their health checks | Read the service events and log, push a fixed tag, apply again |
 | `check-release.sh` says `primary rollout is FAILED` or the image is the old tag | The circuit breaker rolled the release back | Read the service events (`aws ecs describe-services … --query 'services[0].events[:5]'`) and the service log, fix, push a new tag |
 | `seed.sh` or register returns `400` with a password message | The Cognito password policy rejected it | Use 8+ characters with upper case, lower case, a number and a symbol |
 | The CloudFront URL returns `403` with an XML `AccessDenied` body | The storefront was never uploaded | Step 7 |

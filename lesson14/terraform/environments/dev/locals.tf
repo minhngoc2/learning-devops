@@ -9,6 +9,9 @@ locals {
 
   services = toset(["user", "product", "cart", "order", "payment", "notification"])
 
+  # Every image and log group: the six services plus the one-off db-init task.
+  all_task_names = setunion(local.services, ["db-init"])
+
   # Path routing and listener priority on the internal ALB; notification is a worker and has no route.
   web_services = {
     user    = { path_pattern = "/api/users*", priority = 10 }

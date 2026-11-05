@@ -95,14 +95,14 @@ resource "aws_security_group" "this" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "this" {
-  count = var.ingress_security_group_id == null ? 0 : 1
+  for_each = var.ingress_security_group_ids
 
   security_group_id            = aws_security_group.this.id
-  referenced_security_group_id = var.ingress_security_group_id
+  referenced_security_group_id = each.value
   from_port                    = var.container_port
   to_port                      = var.container_port
   ip_protocol                  = "tcp"
-  description                  = "Container port from the load balancer"
+  description                  = "Container port from ${each.key}"
 }
 
 # Egress to AWS APIs (ECR, Secrets Manager, CloudWatch, SQS, SNS, DynamoDB, S3) and to RDS.
@@ -169,6 +169,7 @@ resource "aws_ecs_service" "this" {
   desired_count          = var.desired_count
   launch_type            = "FARGATE"
   enable_execute_command = var.enable_execute_command
+  wait_for_steady_state  = var.wait_for_steady_state
 
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200

@@ -19,6 +19,7 @@ Private, encrypted PostgreSQL instance (gp3, 20 GB), its DB subnet group, and a 
 
 | Output | Use |
 | --- | --- |
+| `identifier` | CloudWatch `DBInstanceIdentifier` dimension |
 | `address`, `port`, `db_name`, `username` | Service environment variables |
 | `secret_arn` | ECS secret `"${secret_arn}:password::"` |
 | `security_group_id` | Target of the caller's ingress rule |

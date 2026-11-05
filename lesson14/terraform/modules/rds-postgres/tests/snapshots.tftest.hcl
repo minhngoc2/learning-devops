@@ -14,8 +14,8 @@ run "protected_defaults" {
     error_message = "Keep the existing protected defaults and default final snapshot name."
   }
   assert {
-    condition     = output.max_connections_estimate == 85
-    error_message = "max_connections_estimate must default to 85 (db.t4g.micro) and pass through."
+    condition     = output.max_connections_estimate == 85 && output.identifier == "lesson14-dev"
+    error_message = "max_connections_estimate must default to 85 (db.t4g.micro) and pass through; identifier is the name."
   }
 }
 

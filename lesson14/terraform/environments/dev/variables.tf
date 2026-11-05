@@ -173,3 +173,10 @@ variable "log_retention_days" {
     error_message = "log_retention_days must be a value CloudWatch Logs accepts: 0 (never expire) or e.g. 1, 3, 5, 7, 14, 30, 90, 365."
   }
 }
+
+variable "run_db_init" {
+  description = "Run scripts/run-db-init.sh from terraform_data.db_init during apply; the mocked tests set false (no AWS CLI calls)."
+  type        = bool
+  default     = true
+  nullable    = false
+}

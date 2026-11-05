@@ -1,6 +1,6 @@
 # ECS service
 
-One Fargate (ARM64) workload: task definition with a single container named `app` (port mappings, environment, Secrets Manager secrets, container health check every 30 s, `awslogs` to `/ecs/<name>` with stream prefix `app`), an execution role (`AmazonECSTaskExecutionRolePolicy` plus a `read-secrets` policy scoped to the referenced secrets), a task role for the app's own permissions (`task_policy_json`), and a security group (all egress; ingress on `container_port` only from `ingress_security_group_id`). With `create_service = true` it also runs an ECS service (rolling 100/200 %, circuit breaker with rollback, optional target-group registration with a 60 s grace period) and CPU target-tracking autoscaling between `min_count` and `max_count`. The service ignores later `desired_count` changes because autoscaling owns them. With `create_service = false` (db-init) only the task definition, roles, log group and security group are created; the SG still exists so the caller can allow it into the database.
+One Fargate (ARM64) workload: task definition with a single container named `app` (port mappings, environment, Secrets Manager secrets, container health check every 30 s, `awslogs` to `/ecs/<name>` with stream prefix `app`), an execution role (`AmazonECSTaskExecutionRolePolicy` plus a `read-secrets` policy scoped to the referenced secrets), a task role for the app's own permissions (`task_policy_json`), and a security group (all egress; ingress on `container_port` only from the `ingress_security_group_ids`). With `create_service = true` it also runs an ECS service (rolling 100/200 %, circuit breaker with rollback, apply waits for a steady state so a failed deployment fails the apply, optional target-group registration with a 60 s grace period) and CPU target-tracking autoscaling between `min_count` and `max_count`. The service ignores later `desired_count` changes because autoscaling owns them. With `create_service = false` (db-init) only the task definition, roles, log group and security group are created; the SG still exists so the caller can allow it into the database.
 
 | Input | Default | Purpose / rule |
 | --- | --- | --- |
@@ -17,10 +17,11 @@ One Fargate (ARM64) workload: task definition with a single container named `app
 | `environment` | `{}` | Plain env vars |
 | `secrets` | `{}` | Env var → Secrets Manager ARN (optional `:key::` suffix) |
 | `task_policy_json` | `null` | Inline task role policy; `null` = none |
-| `ingress_security_group_id` | `null` | SG allowed on `container_port` (ALB SG); `null` = no ingress |
+| `ingress_security_group_ids` | `{}` | Static key → SG allowed on `container_port` (`{ alb = … }`); `{}` = no ingress |
 | `target_group_arn` | `null` | Register `app:<container_port>`; `null` = worker |
 | `health_check_command` | `["CMD","/app","-healthcheck"]` | Container health check; starts with `CMD`/`CMD-SHELL` |
 | `log_retention_days` | `7` | A CloudWatch Logs retention value |
+| `wait_for_steady_state` | `true` | Apply waits until the service is stable; a failed rollout fails the apply |
 | `enable_execute_command` | `false` | ECS Exec plus the SSM channel permissions on the task role |
 
 | Output | Use |
@@ -35,16 +36,16 @@ One Fargate (ARM64) workload: task definition with a single container named `app
 
 ```hcl
 module "service" {
-  source                    = "../../modules/ecs-service"
-  name                      = "lesson14-dev-user"
-  cluster_id                = module.cluster.cluster_id
-  cluster_name              = module.cluster.cluster_name
-  vpc_id                    = module.network.vpc_id
-  subnet_ids                = module.network.private_subnet_ids
-  image                     = "${module.ecr.repository_urls["user"]}:${var.image_tag}"
-  target_group_arn          = module.alb.target_group_arns["user"]
-  ingress_security_group_id = module.alb.security_group_id
-  secrets                   = { DB_PASSWORD = "${module.db.secret_arn}:password::" }
+  source                     = "../../modules/ecs-service"
+  name                       = "lesson14-dev-user"
+  cluster_id                 = module.cluster.cluster_id
+  cluster_name               = module.cluster.cluster_name
+  vpc_id                     = module.network.vpc_id
+  subnet_ids                 = module.network.private_subnet_ids
+  image                      = "${module.ecr.repository_urls["user"]}:${var.image_tag}"
+  target_group_arn           = module.alb.target_group_arns["user"]
+  ingress_security_group_ids = { alb = module.alb.security_group_id }
+  secrets                    = { DB_PASSWORD = "${module.db.secret_arn}:password::" }
 }
 ```
 

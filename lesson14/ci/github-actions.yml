@@ -4,6 +4,13 @@
 #   AWS_REGION           e.g. ap-southeast-1
 #   TF_STATE_BUCKET      output state_bucket of terraform/bootstrap
 # and create a "dev" environment with required reviewers so apply waits for a human approval.
+#
+# PRIVATE REPOSITORY ONLY: the dev-tfplan artifact embeds generated secrets (random_password values for the
+# origin-verify header and the svc_* role passwords) in plain text. Anyone who can read the repository's
+# Actions artifacts can read them, so do not use this workflow as-is in a public repository.
+#
+# First deploy: build pushes to the lesson14/<service> ECR repositories, so they must already exist. Create them
+# once by hand with `terraform apply -target=module.ecr` (quickstart step 5.2) before the first push to main.
 name: lesson14
 
 on:
@@ -56,7 +63,10 @@ jobs:
         run: |
           terraform fmt -check -recursive terraform
           for dir in terraform/bootstrap terraform/environments/dev terraform/modules/*; do
-            terraform -chdir="$dir" init -backend=false -input=false
+            # Roots commit .terraform.lock.hcl and must match it; module lock files are not committed.
+            lockfile=()
+            [[ -f "$dir/.terraform.lock.hcl" ]] && lockfile=(-lockfile=readonly)
+            terraform -chdir="$dir" init -backend=false -input=false "${lockfile[@]}"
             terraform -chdir="$dir" validate
             terraform -chdir="$dir" test
           done
@@ -71,6 +81,7 @@ jobs:
       - name: Release check offline test
         run: python3 scripts/test_check_release.py
 
+  # Needs the ECR repositories to exist (terraform apply -target=module.ecr on the first deploy; see the header).
   build:
     needs: test
     if: github.event_name == 'push'
@@ -106,7 +117,7 @@ jobs:
       contents: read
       id-token: write  # OIDC: short-lived AWS credentials, no stored access keys
     concurrency:
-      group: lesson14-dev-${{ github.job }}
+      group: lesson14-dev  # one group for plan and apply: a newer plan never runs between a plan and its apply
       cancel-in-progress: false  # never cancel a running plan/apply mid-way (state lock)
     steps:
       - uses: actions/checkout@v4
@@ -121,7 +132,7 @@ jobs:
       - name: Terraform plan
         run: |
           cp "$TF_ROOT/dev.tfvars.example" "$TF_ROOT/dev.tfvars"
-          terraform -chdir="$TF_ROOT" init -input=false \
+          terraform -chdir="$TF_ROOT" init -input=false -lockfile=readonly \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -backend-config="key=dev/terraform.tfstate" \
             -backend-config="region=${{ vars.AWS_REGION }}" \
@@ -134,12 +145,12 @@ jobs:
             terraform -chdir="$TF_ROOT" show -no-color dev.tfplan
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-      # The plan file can contain sensitive values (secrets, state data): keep retention short.
+      # The plan file contains the generated secrets in plain text (see the header): keep it for one day only.
       - uses: actions/upload-artifact@v4
         with:
           name: dev-tfplan
           path: lesson14/terraform/environments/dev/dev.tfplan
-          retention-days: 5
+          retention-days: 1
 
   apply:
     needs: plan
@@ -149,7 +160,7 @@ jobs:
       contents: read
       id-token: write  # OIDC: short-lived AWS credentials, no stored access keys
     concurrency:
-      group: lesson14-dev-${{ github.job }}
+      group: lesson14-dev  # one group for plan and apply: a newer plan never runs between a plan and its apply
       cancel-in-progress: false  # never cancel a running plan/apply mid-way (state lock)
     steps:
       - uses: actions/checkout@v4
@@ -167,7 +178,7 @@ jobs:
           path: lesson14/terraform/environments/dev
       - name: Terraform apply
         run: |
-          terraform -chdir="$TF_ROOT" init -input=false \
+          terraform -chdir="$TF_ROOT" init -input=false -lockfile=readonly \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -backend-config="key=dev/terraform.tfstate" \
             -backend-config="region=${{ vars.AWS_REGION }}" \

@@ -161,10 +161,11 @@ variable "task_policy_json" {
   }
 }
 
-variable "ingress_security_group_id" {
-  description = "Security group allowed in on container_port (the ALB SG); null = no ingress (workers, one-off tasks)."
-  type        = string
-  default     = null
+variable "ingress_security_group_ids" {
+  description = "Static key => security group allowed in on container_port (e.g. { alb = <ALB SG> }); {} = no ingress (workers, one-off tasks). Keys must be known at plan time; IDs may be unknown."
+  type        = map(string)
+  default     = {}
+  nullable    = false
 }
 
 variable "target_group_arn" {
@@ -195,6 +196,13 @@ variable "log_retention_days" {
     condition     = contains([0, 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.log_retention_days)
     error_message = "log_retention_days must be a value CloudWatch Logs accepts: 0 (never expire) or e.g. 1, 3, 5, 7, 14, 30, 90, 365."
   }
+}
+
+variable "wait_for_steady_state" {
+  description = "Make apply wait until the service is stable, so a deployment the circuit breaker fails also fails the apply."
+  type        = bool
+  default     = true
+  nullable    = false
 }
 
 variable "enable_execute_command" {

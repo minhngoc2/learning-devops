@@ -1,3 +1,8 @@
+output "identifier" {
+  description = "DB instance identifier, the CloudWatch DBInstanceIdentifier dimension."
+  value       = aws_db_instance.main.identifier
+}
+
 output "address" {
   description = "DB hostname (resolves to a private IP)."
   value       = aws_db_instance.main.address

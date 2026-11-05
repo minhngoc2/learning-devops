@@ -133,11 +133,14 @@ run "buckets_private" {
   command = apply # the distribution ARN is only known after (mocked) apply
 
   assert {
-    condition = alltrue([
-      for b in values(aws_s3_bucket_public_access_block.this) :
-      b.block_public_acls && b.block_public_policy && b.ignore_public_acls && b.restrict_public_buckets
-    ]) && length(aws_s3_bucket_public_access_block.this) == 2
-    error_message = "Both buckets must block all public access."
+    condition = (
+      alltrue([
+        for b in values(aws_s3_bucket_public_access_block.this) :
+        b.block_public_acls && b.block_public_policy && b.ignore_public_acls && b.restrict_public_buckets
+      ]) && length(aws_s3_bucket_public_access_block.this) == 2 &&
+      toset(keys(output.bucket_public_access_blocks)) == toset(["storefront", "images"])
+    )
+    error_message = "Both buckets must block all public access, and the output must list both."
   }
   assert {
     condition = alltrue([

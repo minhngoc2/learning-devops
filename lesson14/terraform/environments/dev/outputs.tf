@@ -30,7 +30,7 @@ output "service_names" {
 
 output "ecr_repository_urls" {
   description = "Image name (service or db-init) → ECR repository URL to tag and push <url>:<image_tag>."
-  value       = { for s in setunion(local.services, ["db-init"]) : s => module.ecr.repository_urls["${var.project}/${s}"] }
+  value       = { for s in local.all_task_names : s => module.ecr.repository_urls["${var.project}/${s}"] }
 }
 
 output "db_init_run_command" {
@@ -43,6 +43,11 @@ output "db_init_run_command" {
     "--network-configuration \"awsvpcConfiguration={subnets=[${join(",", module.network.private_subnet_ids)}],securityGroups=[${module.db_init.security_group_id}],assignPublicIp=DISABLED}\"",
     "--region ${var.aws_region}",
   ])
+}
+
+output "db_init_log_group_name" {
+  description = "CloudWatch log group of the db-init task, read by scripts/run-db-init.sh."
+  value       = module.db_init.log_group_name
 }
 
 output "dashboard_url" {

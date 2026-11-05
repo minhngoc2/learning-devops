@@ -15,9 +15,11 @@ One CloudFront distribution in front of everything: the Nuxt storefront from a p
 | --- | --- |
 | `distribution_id` | `aws cloudfront create-invalidation` |
 | `distribution_arn` | Reference the distribution |
+| `web_acl_id` | WAF ACL actually attached to the distribution |
 | `domain_name` | Public URL host, Product Service `PUBLIC_BASE_URL` |
 | `storefront_bucket_name` | `aws s3 sync .output/public/` target |
 | `images_bucket_name`, `images_bucket_arn` | Image uploads, Product Service `IMAGES_BUCKET` and task policy |
+| `bucket_public_access_blocks` | Role → the four public-access-block flags (tests, audits) |
 
 ```hcl
 module "edge" {
