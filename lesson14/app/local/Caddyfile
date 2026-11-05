@@ -1,5 +1,5 @@
 # Local stand-in for the internal ALB's path routing (compose only; same rules as the listener).
-# handle blocks are mutually exclusive; the bare one is the fallback, like the listener's default 404.
+# handle blocks are mutually exclusive; the bare one is the fallback (the AWS ALB's default is a 403 instead).
 {
 	admin off
 	auto_https off
