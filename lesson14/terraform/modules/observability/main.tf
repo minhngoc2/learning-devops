@@ -200,7 +200,7 @@ locals {
       widgets = [
         { title = "CloudFront requests", region = "us-east-1", stat = "Sum", metrics = [["AWS/CloudFront", "Requests", "DistributionId", var.distribution_id, "Region", "Global"]] },
         { title = "CloudFront 5xx error rate (%)", region = "us-east-1", stat = "Average", metrics = [["AWS/CloudFront", "5xxErrorRate", "DistributionId", var.distribution_id, "Region", "Global"]] },
-        { title = "WAF blocked requests", region = "us-east-1", stat = "Sum", metrics = [["AWS/WAFV2", "BlockedRequests", "WebACL", var.web_acl_name, "Region", "us-east-1", "Rule", "ALL"]] },
+        { title = "WAF blocked requests", region = "us-east-1", stat = "Sum", metrics = [["AWS/WAFV2", "BlockedRequests", "WebACL", var.web_acl_name, "Region", "Global", "Rule", "ALL"]] },
       ]
     },
     {

@@ -1,5 +1,11 @@
 # Mocked AWS: no credentials or real resources.
-mock_provider "aws" {}
+mock_provider "aws" {
+  mock_resource "aws_sns_topic" {
+    defaults = {
+      arn = "arn:aws:sns:us-east-1:111111111111:lesson14-dev-waf-ops"
+    }
+  }
+}
 
 variables {
   name = "lesson14-dev"
@@ -38,27 +44,38 @@ run "cloudfront_scope_three_rules" {
     error_message = "Every rule must sample requests and use the metric name <name>-<rule>."
   }
   assert {
-    condition     = length(aws_cloudwatch_metric_alarm.blocked) == 0
-    error_message = "No alarm without ops_topic_arn (the default null)."
+    condition     = length(aws_cloudwatch_metric_alarm.blocked) == 0 && length(aws_sns_topic_subscription.email) == 0 && aws_sns_topic.ops.name == "lesson14-dev-waf-ops"
+    error_message = "Without alarm_email (the default null): no alarm, no subscription, but the topic still exists."
   }
 }
 
-run "alarm_only_with_topic" {
-  command = plan
+run "alarm_only_with_email" {
+  command = apply # the topic ARN is only known after (mocked) apply
   variables {
-    ops_topic_arn = "arn:aws:sns:us-east-1:111111111111:lesson14-dev-ops"
+    alarm_email = "ops@example.com"
   }
 
   assert {
     condition = (
       length(aws_cloudwatch_metric_alarm.blocked) == 1 &&
-      contains(aws_cloudwatch_metric_alarm.blocked[0].alarm_actions, var.ops_topic_arn) &&
+      contains(aws_cloudwatch_metric_alarm.blocked[0].alarm_actions, aws_sns_topic.ops.arn) &&
+      contains(aws_cloudwatch_metric_alarm.blocked[0].ok_actions, aws_sns_topic.ops.arn) &&
       aws_cloudwatch_metric_alarm.blocked[0].namespace == "AWS/WAFV2" &&
       aws_cloudwatch_metric_alarm.blocked[0].metric_name == "BlockedRequests" &&
-      aws_cloudwatch_metric_alarm.blocked[0].dimensions == tomap({ WebACL = "lesson14-dev", Region = "us-east-1", Rule = "ALL" }) &&
+      aws_cloudwatch_metric_alarm.blocked[0].dimensions == tomap({ WebACL = "lesson14-dev", Region = "Global", Rule = "ALL" }) &&
       aws_cloudwatch_metric_alarm.blocked[0].threshold == 100
     )
-    error_message = "With ops_topic_arn, one BlockedRequests alarm must notify the topic."
+    error_message = "With alarm_email, one BlockedRequests alarm (Region=Global) must notify the module's topic."
+  }
+  assert {
+    condition = (
+      length(aws_sns_topic_subscription.email) == 1 &&
+      aws_sns_topic_subscription.email[0].protocol == "email" &&
+      aws_sns_topic_subscription.email[0].endpoint == "ops@example.com" &&
+      aws_sns_topic_subscription.email[0].topic_arn == aws_sns_topic.ops.arn &&
+      output.ops_topic_arn == aws_sns_topic.ops.arn
+    )
+    error_message = "alarm_email must add one email subscription to the module's topic."
   }
 }
 

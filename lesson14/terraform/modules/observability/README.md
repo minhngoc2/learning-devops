@@ -21,7 +21,7 @@ One ops SNS topic (`<name>-ops`, optional email subscription) that every alarm n
 
 | Output | Use |
 | --- | --- |
-| `ops_topic_arn` | waf `ops_topic_arn`, other alarms |
+| `ops_topic_arn` | Other regional alarms (not the us-east-1 WAF alarm, which has its own topic) |
 | `dashboard_name` | Reference the dashboard |
 | `dashboard_url` | Open the dashboard in the console |
 

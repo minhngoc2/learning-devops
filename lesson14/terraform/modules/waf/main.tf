@@ -81,19 +81,33 @@ resource "aws_wafv2_web_acl" "this" {
   }
 }
 
+# CloudWatch alarms can only notify SNS topics in their own region, so the us-east-1 alarm gets its own topic.
+resource "aws_sns_topic" "ops" {
+  name = "${var.name}-waf-ops"
+}
+
+resource "aws_sns_topic_subscription" "email" {
+  count = var.alarm_email == null ? 0 : 1
+
+  topic_arn = aws_sns_topic.ops.arn
+  protocol  = "email"
+  endpoint  = var.alarm_email
+}
+
 resource "aws_cloudwatch_metric_alarm" "blocked" {
-  count = var.ops_topic_arn == null ? 0 : 1
+  count = var.alarm_email == null ? 0 : 1
 
   alarm_name          = "${var.name}-waf-blocked-requests"
   alarm_description   = "WAF blocked more than ${var.blocked_requests_threshold} requests in 5 minutes"
   namespace           = "AWS/WAFV2"
   metric_name         = "BlockedRequests"
-  dimensions          = { WebACL = var.name, Region = "us-east-1", Rule = "ALL" }
+  dimensions          = { WebACL = var.name, Region = "Global", Rule = "ALL" } # CLOUDFRONT-scope metrics use Region=Global
   statistic           = "Sum"
   period              = 300
   evaluation_periods  = 1
   comparison_operator = "GreaterThanThreshold"
   threshold           = var.blocked_requests_threshold
   treat_missing_data  = "notBreaching"
-  alarm_actions       = [var.ops_topic_arn]
+  alarm_actions       = [aws_sns_topic.ops.arn]
+  ok_actions          = [aws_sns_topic.ops.arn]
 }

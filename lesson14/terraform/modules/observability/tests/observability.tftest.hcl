@@ -140,6 +140,13 @@ run "dashboard_has_five_rows" {
     error_message = "CloudFront and WAF widgets must read us-east-1."
   }
   assert {
+    condition = [
+      for w in jsondecode(aws_cloudwatch_dashboard.this.dashboard_body).widgets : w.properties.metrics[0]
+      if w.type == "metric" && strcontains(jsonencode(w.properties.metrics), "AWS/WAFV2")
+    ] == [["AWS/WAFV2", "BlockedRequests", "WebACL", "lesson14-dev", "Region", "Global", "Rule", "ALL"]]
+    error_message = "The WAF widget must query BlockedRequests with Region=Global (CLOUDFRONT scope)."
+  }
+  assert {
     condition     = aws_cloudwatch_dashboard.this.dashboard_name == "lesson14-dev" && strcontains(output.dashboard_url, "region=ap-southeast-1")
     error_message = "Dashboard is named <name>; its URL points at aws_region."
   }

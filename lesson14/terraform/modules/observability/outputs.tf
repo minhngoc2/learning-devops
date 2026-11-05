@@ -1,5 +1,5 @@
 output "ops_topic_arn" {
-  description = "Ops SNS topic ARN that every alarm notifies; pass to the waf module's ops_topic_arn."
+  description = "Ops SNS topic ARN (in aws_region) that every alarm of this module notifies."
   value       = aws_sns_topic.ops.arn
 }
 

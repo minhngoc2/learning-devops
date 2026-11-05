@@ -32,13 +32,13 @@ variable "blocked_requests_threshold" {
   }
 }
 
-variable "ops_topic_arn" {
-  description = "SNS topic the BlockedRequests alarm notifies; null = no alarm."
+variable "alarm_email" {
+  description = "Email subscribed to this module's us-east-1 ops topic (confirm the email AWS sends); null = no subscription and no BlockedRequests alarm."
   type        = string
   default     = null
 
   validation {
-    condition     = var.ops_topic_arn == null || can(regex("^arn:aws[a-z-]*:sns:", var.ops_topic_arn))
-    error_message = "ops_topic_arn must be an SNS topic ARN or null."
+    condition     = var.alarm_email == null || can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", var.alarm_email))
+    error_message = "alarm_email must be an email address or null."
   }
 }

@@ -162,7 +162,7 @@ run "images_behaviour_strips_prefix" {
   command = apply # function ARNs are only known after (mocked) apply
 
   assert {
-    condition = alltrue([
+    condition = length([for b in aws_cloudfront_distribution.this.ordered_cache_behavior : b if b.path_pattern == "/images/*"]) == 1 && alltrue([
       for b in aws_cloudfront_distribution.this.ordered_cache_behavior :
       length(b.function_association) == 1 &&
       one(b.function_association).event_type == "viewer-request" &&
