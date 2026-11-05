@@ -4,10 +4,10 @@ package httpx
 import (
 	"context"
 	"errors"
-	"flag"
 	"log/slog"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 )
@@ -50,17 +50,12 @@ func Run(ctx context.Context, srv *http.Server, log *slog.Logger) error {
 	return nil
 }
 
-// HealthcheckFlag parses the command line. Without -healthcheck it returns false. With it, it probes
-// http://127.0.0.1:<port>/health (the distroless image has no curl): it exits 1 on failure and returns
-// true on success, so main can simply return.
+// HealthcheckFlag looks for -healthcheck (or --healthcheck) in os.Args without touching the flag package,
+// so services stay free to define and parse their own flags. Without it, it returns false. With it, it
+// probes http://127.0.0.1:<port>/health (the distroless image has no curl): it exits 1 on failure and
+// returns true on success, so main can simply return.
 func HealthcheckFlag(port string) (handled bool) {
-	if flag.Lookup("healthcheck") == nil {
-		flag.Bool("healthcheck", false, "probe /health and exit (for Docker/ECS health checks)")
-	}
-	if !flag.Parsed() {
-		flag.Parse()
-	}
-	if flag.Lookup("healthcheck").Value.String() != "true" {
+	if !hasHealthcheckArg(os.Args[1:]) {
 		return false
 	}
 
@@ -74,6 +69,12 @@ func HealthcheckFlag(port string) (handled bool) {
 		os.Exit(1)
 	}
 	return true
+}
+
+func hasHealthcheckArg(args []string) bool {
+	return slices.ContainsFunc(args, func(a string) bool {
+		return a == "-healthcheck" || a == "--healthcheck" || a == "-healthcheck=true" || a == "--healthcheck=true"
+	})
 }
 
 // NewLogger returns a JSON logger on stdout at the level in LOG_LEVEL (debug, info, warn, error; default info).

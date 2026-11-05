@@ -65,3 +65,24 @@ func TestHealth_OK(t *testing.T) {
 		t.Errorf("body = %s", got)
 	}
 }
+
+func TestHealthcheckFlag_ScansArgsWithoutFlagParse(t *testing.T) {
+	cases := map[string]struct {
+		args []string
+		want bool
+	}{
+		"none":             {nil, false},
+		"single dash":      {[]string{"-healthcheck"}, true},
+		"double dash":      {[]string{"--healthcheck"}, true},
+		"other flags only": {[]string{"-port=1", "healthcheck"}, false},
+	}
+	for name, c := range cases {
+		if got := hasHealthcheckArg(c.args); got != c.want {
+			t.Errorf("%s: hasHealthcheckArg(%v) = %v, want %v", name, c.args, got, c.want)
+		}
+	}
+	// The test binary's own -test.* args carry no -healthcheck, so this must return without probing.
+	if HealthcheckFlag("1") {
+		t.Error("HealthcheckFlag = true without -healthcheck")
+	}
+}
