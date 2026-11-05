@@ -1,0 +1,10 @@
+aws_region         = "ap-southeast-1"
+project            = "lesson14"
+image_tag          = "v1" # must match the tag you pushed to every lesson14/<service> repository
+desired_count      = 1
+max_count          = 4
+single_nat_gateway = true  # one NAT gateway for both AZs (cheaper)
+multi_az           = false # RDS standby doubles the DB cost
+force_destroy      = true  # let destroy empty the storefront/images buckets and ECR repositories
+# alarm_email       = "you@example.com" # confirm the two SNS subscription emails (ap-southeast-1 and us-east-1)
+# notify_from_email = "you@example.com" # SES sender; click the verification email. Unset = NOTIFY_MODE=log
