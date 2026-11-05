@@ -1,8 +1,10 @@
 # One Dockerfile for every service: --build-arg SERVICE=<name> picks ./cmd/<name>.
-# Stage 1: build a static binary (no cgo, so it runs on distroless/static)
-FROM golang:1.27-alpine AS builder
+# Stage 1: build a static binary (no cgo, so it runs on distroless/static). The builder runs on the host's
+# platform and cross-compiles for the target (linux/arm64 on Fargate), so no emulation is needed.
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS builder
 
 ARG SERVICE
+ARG TARGETOS TARGETARCH
 
 WORKDIR /src
 
@@ -12,7 +14,7 @@ RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
 RUN test -n "${SERVICE}" || (echo "build with --build-arg SERVICE=<name>" >&2 && exit 1)
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/app ./cmd/${SERVICE}
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/app ./cmd/${SERVICE}
 
 # Stage 2: runtime has only the binary + CA certs, runs as uid 65532
 FROM gcr.io/distroless/static-debian12:nonroot

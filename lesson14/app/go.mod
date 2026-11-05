@@ -1,6 +1,6 @@
 module github.com/minhngoc2/learning-devops/lesson14
 
-go 1.27.1
+go 1.27.3
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.47.6
