@@ -1,0 +1,165 @@
+# Sample GitHub Actions pipeline for lesson14. It is NOT wired: GitHub only runs workflows under the
+# repository's .github/workflows/. To use it, copy it there and set the repository variables
+#   AWS_DEPLOY_ROLE_ARN  IAM role trusted for GitHub OIDC (token.actions.githubusercontent.com)
+#   AWS_REGION           e.g. ap-southeast-1
+#   TF_STATE_BUCKET      output state_bucket of terraform/bootstrap
+# and create a "dev" environment with required reviewers so apply waits for a human approval.
+name: lesson14
+
+on:
+  pull_request:
+    paths: ["lesson14/**"]
+  push:
+    branches: [main]
+    paths: ["lesson14/**"]
+
+permissions:
+  contents: read
+  id-token: write  # OIDC: short-lived AWS credentials, no stored access keys
+
+concurrency:
+  group: lesson14-dev
+  cancel-in-progress: false  # never cancel a running apply
+
+defaults:
+  run:
+    working-directory: lesson14
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  TF_ROOT: terraform/environments/dev
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: lesson14/app/go.mod
+      - name: Go vet and test
+        run: |
+          go -C app vet ./...
+          go -C app test ./...
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: lesson14/storefront/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: lesson14/storefront/pnpm-lock.yaml
+      - name: Storefront generate
+        run: |
+          pnpm --dir storefront install --frozen-lockfile
+          pnpm --dir storefront generate
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.10"
+          terraform_wrapper: false
+      - name: Terraform fmt, validate and mocked tests
+        run: |
+          terraform fmt -check -recursive terraform
+          for dir in terraform/bootstrap terraform/environments/dev terraform/modules/*; do
+            terraform -chdir="$dir" init -backend=false -input=false
+            terraform -chdir="$dir" validate
+            terraform -chdir="$dir" test
+          done
+      - uses: terraform-linters/setup-tflint@v4
+      - name: TFLint
+        run: |
+          tflint --init --config="$PWD/terraform/.tflint.hcl"
+          tflint --recursive --config="$PWD/terraform/.tflint.hcl"
+      - uses: astral-sh/setup-uv@v6
+      - name: checkov
+        run: uvx checkov --config-file terraform/.checkov.yaml -d terraform
+      - name: Release check offline test
+        run: python3 scripts/test_check_release.py
+
+  build:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [user, product, cart, order, payment, notification, db-init]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-qemu-action@v3  # the Fargate tasks are linux/arm64
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push ${{ matrix.service }}
+        run: |
+          docker buildx build --platform linux/arm64 \
+            --build-arg SERVICE=${{ matrix.service }} \
+            -t "${{ steps.ecr.outputs.registry }}/lesson14/${{ matrix.service }}:${{ github.sha }}" \
+            --push app
+
+  plan:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.10"
+          terraform_wrapper: false
+      - name: Terraform plan
+        run: |
+          cp "$TF_ROOT/dev.tfvars.example" "$TF_ROOT/dev.tfvars"
+          terraform -chdir="$TF_ROOT" init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=dev/terraform.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="use_lockfile=true" -backend-config="encrypt=true"
+          terraform -chdir="$TF_ROOT" plan -input=false -var-file=dev.tfvars \
+            -var image_tag=${{ github.sha }} -out=dev.tfplan
+          {
+            echo '### Terraform plan (dev)'
+            echo '```'
+            terraform -chdir="$TF_ROOT" show -no-color dev.tfplan
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dev-tfplan
+          path: lesson14/terraform/environments/dev/dev.tfplan
+          retention-days: 5
+
+  apply:
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: dev  # required reviewers approve the plan shown in the plan job summary
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.10"
+          terraform_wrapper: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: dev-tfplan
+          path: lesson14/terraform/environments/dev
+      - name: Terraform apply
+        run: |
+          terraform -chdir="$TF_ROOT" init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=dev/terraform.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="use_lockfile=true" -backend-config="encrypt=true"
+          terraform -chdir="$TF_ROOT" apply -input=false dev.tfplan
+      - name: Release check
+        run: bash scripts/check-release.sh ${{ github.sha }}
