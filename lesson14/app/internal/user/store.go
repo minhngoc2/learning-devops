@@ -18,9 +18,10 @@ type Customer struct {
 
 var ErrNotFound = errors.New("customer not found")
 
-// Store persists Customers. Create overwrites an existing row with the same sub, so a retried register
-// cannot get stuck on a half-written profile.
+// Store persists Customers. Create inserts the row unless one with the same sub exists and reports whether
+// it did; an existing row is left untouched (SignUp does not check the password, so a repeated register
+// must not be able to rewrite someone's profile).
 type Store interface {
-	Create(ctx context.Context, c Customer) error
+	Create(ctx context.Context, c Customer) (created bool, err error)
 	Get(ctx context.Context, sub string) (Customer, error)
 }

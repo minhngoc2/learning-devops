@@ -13,11 +13,14 @@ type memoryStore struct {
 // NewMemoryStore keeps Customers in process memory; for tests.
 func NewMemoryStore() Store { return &memoryStore{customers: map[string]Customer{}} }
 
-func (s *memoryStore) Create(_ context.Context, c Customer) error {
+func (s *memoryStore) Create(_ context.Context, c Customer) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, ok := s.customers[c.Sub]; ok {
+		return false, nil
+	}
 	s.customers[c.Sub] = c
-	return nil
+	return true, nil
 }
 
 func (s *memoryStore) Get(_ context.Context, sub string) (Customer, error) {

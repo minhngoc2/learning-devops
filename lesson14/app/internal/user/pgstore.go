@@ -24,15 +24,15 @@ type pgStore struct{ pool *pgxpool.Pool }
 // NewPGStore stores Customers in PostgreSQL; run DDL first.
 func NewPGStore(pool *pgxpool.Pool) Store { return &pgStore{pool: pool} }
 
-func (s *pgStore) Create(ctx context.Context, c Customer) error {
-	_, err := s.pool.Exec(ctx,
+func (s *pgStore) Create(ctx context.Context, c Customer) (bool, error) {
+	tag, err := s.pool.Exec(ctx,
 		`INSERT INTO customers (sub, email, display_name, created_at) VALUES ($1, $2, $3, $4)
-		 ON CONFLICT (sub) DO UPDATE SET email = EXCLUDED.email, display_name = EXCLUDED.display_name`,
+		 ON CONFLICT (sub) DO NOTHING`,
 		c.Sub, c.Email, c.DisplayName, c.CreatedAt)
 	if err != nil {
-		return fmt.Errorf("insert customer: %w", err)
+		return false, fmt.Errorf("insert customer: %w", err)
 	}
-	return nil
+	return tag.RowsAffected() == 1, nil
 }
 
 func (s *pgStore) Get(ctx context.Context, sub string) (Customer, error) {

@@ -10,7 +10,7 @@ import (
 	"github.com/minhngoc2/learning-devops/lesson14/internal/httpx"
 )
 
-// Routes mounts POST /api/users/register (201 Customer; 409 for a taken email), POST /api/users/login
+// Routes mounts POST /api/users/register (201 Customer; 409 when the profile already exists), POST /api/users/login
 // (200 Tokens; 401 for bad credentials), GET /api/users/me (needs an identity; 404 without a profile row)
 // and GET /health. Emails are trimmed and lower-cased before they reach Auth or the Store.
 func Routes(a Auth, s Store, log *slog.Logger) http.Handler {
@@ -54,11 +54,10 @@ func (h handlers) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Register is retryable: for a known email it returns the existing sub, so a register that failed after
+	// creating the identity completes now. Only a missing profile row means "new" (201); otherwise 409.
 	sub, err := h.auth.Register(r.Context(), email, req.Password, name)
 	switch {
-	case errors.Is(err, ErrEmailTaken):
-		httpx.WriteError(w, http.StatusConflict, "email already registered")
-		return
 	case errors.Is(err, ErrInvalidInput):
 		httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -67,11 +66,15 @@ func (h handlers) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := Customer{Sub: sub, Email: email, DisplayName: name, CreatedAt: time.Now().UTC()}
-	if err := h.store.Create(r.Context(), c); err != nil {
+	created, err := h.store.Create(r.Context(), c)
+	switch {
+	case err != nil:
 		httpx.Internal(w, h.log, "store customer", err)
-		return
+	case !created:
+		httpx.WriteError(w, http.StatusConflict, "email already registered")
+	default:
+		httpx.WriteJSON(w, http.StatusCreated, c)
 	}
-	httpx.WriteJSON(w, http.StatusCreated, c)
 }
 
 func (h handlers) login(w http.ResponseWriter, r *http.Request) {

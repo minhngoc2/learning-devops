@@ -21,8 +21,8 @@ func NewLocalAuth() Auth { return &localAuth{accounts: map[string]localAccount{}
 func (a *localAuth) Register(_ context.Context, email, password, _ string) (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if _, ok := a.accounts[email]; ok {
-		return "", ErrEmailTaken
+	if acc, ok := a.accounts[email]; ok {
+		return acc.sub, nil
 	}
 	sub := uuid.NewString()
 	a.accounts[email] = localAccount{sub: sub, password: password}
