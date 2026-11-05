@@ -7,14 +7,14 @@
 #             DB_INIT_SECURITY_GROUP, DB_INIT_LOG_GROUP
 set -euo pipefail
 
-fail() { printf 'db-init failed: %s\n' "$*" >&2; exit 1; }
+fail_prefix='db-init failed'
+# shellcheck source=lib.sh
+source "$(dirname "$0")/lib.sh"
 
 [[ $# -eq 0 ]] || fail 'Usage: bash scripts/run-db-init.sh'
-[[ -n "${AWS_REGION:-}" ]] || fail 'Set AWS_REGION to the deployed provider region.'
-command -v aws >/dev/null || fail 'aws is required.'
-export AWS_PAGER=""
+require_region
+require_tools aws
 
-lesson_dir="$(cd "$(dirname "$0")/.." && pwd)"
 dev_root="$lesson_dir/terraform/environments/dev"
 
 tf_output() {

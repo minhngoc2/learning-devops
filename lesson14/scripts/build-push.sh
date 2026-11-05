@@ -5,23 +5,22 @@
 # and docker entirely, using placeholder repository URLs, so it needs no AWS access or state.
 set -euo pipefail
 
-fail() { printf 'build-push failed: %s\n' "$*" >&2; exit 1; }
+fail_prefix='build-push failed'
+# shellcheck source=lib.sh
+source "$(dirname "$0")/lib.sh"
 
-[[ $# -eq 1 && "$1" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || fail 'Usage: bash scripts/build-push.sh <image-tag>'
+valid_tag "$@" || fail 'Usage: bash scripts/build-push.sh <image-tag>'
 tag=$1
 dry_run=${DRY_RUN:-0}
+[[ "$dry_run" == 0 || "$dry_run" == 1 ]] || fail 'DRY_RUN must be 1 or unset'
 if [[ "$dry_run" == 1 ]]; then
   region=${AWS_REGION:-ap-southeast-1}
 else
-  [[ -n "${AWS_REGION:-}" ]] || fail 'Set AWS_REGION to the deployed provider region.'
+  require_region
   region=$AWS_REGION
-  for tool in terraform aws docker python3; do
-    command -v "$tool" >/dev/null || fail "$tool is required."
-  done
+  require_tools terraform aws docker python3
 fi
-export AWS_PAGER=""
 
-lesson_dir="$(cd "$(dirname "$0")/.." && pwd)"
 names=(user product cart order payment notification db-init)
 
 # urls[i] is the repository URL of names[i] (indexed arrays keep macOS bash 3.2 working).

@@ -3,17 +3,15 @@
 # raw execute-api URL is refused (403, origin verification). Prints only the CloudFront URL.
 set -euo pipefail
 
-fail() { printf 'Release check failed: %s\n' "$*" >&2; exit 1; }
+fail_prefix='Release check failed'
+# shellcheck source=lib.sh
+source "$(dirname "$0")/lib.sh"
 
-[[ $# -eq 1 && "$1" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || fail 'Usage: bash scripts/check-release.sh <expected-image-tag>'
+valid_tag "$@" || fail 'Usage: bash scripts/check-release.sh <expected-image-tag>'
 tag=$1
-[[ -n "${AWS_REGION:-}" ]] || fail 'Set AWS_REGION to the deployed provider region.'
-for tool in terraform aws curl python3; do
-  command -v "$tool" >/dev/null || fail "$tool is required."
-done
-export AWS_PAGER=""
+require_region
+require_tools terraform aws curl python3
 
-lesson_dir="$(cd "$(dirname "$0")/.." && pwd)"
 dev_root="$lesson_dir/terraform/environments/dev"
 services=(user product cart order payment notification)
 
