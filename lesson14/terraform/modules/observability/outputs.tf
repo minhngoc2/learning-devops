@@ -12,3 +12,8 @@ output "dashboard_url" {
   description = "Console URL of the dashboard."
   value       = "https://${var.aws_region}.console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards/dashboard/${aws_cloudwatch_dashboard.this.dashboard_name}"
 }
+
+output "alarm_names" {
+  description = "Names of the alarms this module creates (fixed set + one per DLQ + one per service)."
+  value       = [for a in local.alarms : a.alarm_name]
+}
