@@ -4,3 +4,6 @@ skill-drafts/
 .DS_Store
 .archify/
 docs/superpowers/
+
+# Subagent-driven-development scratch.
+.superpowers/
