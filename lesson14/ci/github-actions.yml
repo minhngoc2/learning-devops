@@ -15,11 +15,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write  # OIDC: short-lived AWS credentials, no stored access keys
-
-concurrency:
-  group: lesson14-dev
-  cancel-in-progress: false  # never cancel a running apply
 
 defaults:
   run:
@@ -80,6 +75,9 @@ jobs:
     needs: test
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # OIDC: short-lived AWS credentials, no stored access keys
     strategy:
       matrix:
         service: [user, product, cart, order, payment, notification, db-init]
@@ -93,6 +91,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
       - uses: docker/setup-qemu-action@v3  # the Fargate tasks are linux/arm64
       - uses: docker/setup-buildx-action@v3
+      # ECR tags are immutable: re-running build for the same SHA fails at push (the image already exists).
       - name: Build and push ${{ matrix.service }}
         run: |
           docker buildx build --platform linux/arm64 \
@@ -103,6 +102,12 @@ jobs:
   plan:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # OIDC: short-lived AWS credentials, no stored access keys
+    concurrency:
+      group: lesson14-dev-${{ github.job }}
+      cancel-in-progress: false  # never cancel a running plan/apply mid-way (state lock)
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
@@ -129,6 +134,7 @@ jobs:
             terraform -chdir="$TF_ROOT" show -no-color dev.tfplan
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      # The plan file can contain sensitive values (secrets, state data): keep retention short.
       - uses: actions/upload-artifact@v4
         with:
           name: dev-tfplan
@@ -139,6 +145,12 @@ jobs:
     needs: plan
     runs-on: ubuntu-latest
     environment: dev  # required reviewers approve the plan shown in the plan job summary
+    permissions:
+      contents: read
+      id-token: write  # OIDC: short-lived AWS credentials, no stored access keys
+    concurrency:
+      group: lesson14-dev-${{ github.job }}
+      cancel-in-progress: false  # never cancel a running plan/apply mid-way (state lock)
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4

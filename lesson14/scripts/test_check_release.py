@@ -68,7 +68,7 @@ if args[:2] == ['ecs', 'describe-services']:
     assert "status=='PRIMARY'" in query, query
     service = arg('--services')
     if query.endswith('rolloutState | [0]'):
-        emit('COMPLETED')
+        emit('FAILED' if scenario == 'rollout_failed' and service == 'lesson14-dev-cart' else 'COMPLETED')
     assert query.endswith('taskDefinition | [0]'), query
     emit('arn:aws:ecs:ap-southeast-1:111111111111:task-definition/' + service + ':7')
 if args[:2] == ['ecs', 'describe-task-definition']:
@@ -111,7 +111,7 @@ class ReleaseCheckTest(unittest.TestCase):
                          [CLOUDFRONT + "/api/products", API + "/api/products"])
 
     def test_rollback_on_any_service_fails(self):
-        for scenario in ("rollback", "wait_failed", "direct_url_not_403"):
+        for scenario in ("rollback", "rollout_failed", "wait_failed", "direct_url_not_403"):
             with self.subTest(scenario=scenario):
                 result, calls = self.run_checker(scenario)
                 self.assertNotEqual(result.returncode, 0)
@@ -121,6 +121,8 @@ class ReleaseCheckTest(unittest.TestCase):
         result, _ = self.run_checker("rollback")
         self.assertIn("lesson14-dev-payment image is", result.stderr)
         self.assertIn("lesson14/payment:v1", result.stderr)
+        result, _ = self.run_checker("rollout_failed")
+        self.assertIn("lesson14-dev-cart primary rollout is FAILED", result.stderr)
 
     def test_release_check_uses_cloudfront_only(self):
         result, calls = self.run_checker("success")

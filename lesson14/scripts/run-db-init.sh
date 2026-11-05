@@ -17,6 +17,10 @@ dev_root="$lesson_dir/terraform/environments/dev"
 cluster=$(terraform -chdir="$dev_root" output -raw cluster_name)
 run_command=$(terraform -chdir="$dev_root" output -raw db_init_run_command)
 [[ "$run_command" == "aws ecs run-task "* ]] || fail 'Unexpected db_init_run_command output.'
+# shellcheck disable=SC2016 # literal metacharacters, nothing should expand
+shell_meta='[;&|`$()<>]'
+[[ ! "$run_command" =~ $shell_meta && "$run_command" != *$'\n'* ]] \
+  || fail 'db_init_run_command contains shell metacharacters or a newline; refusing to eval it.'
 
 # The command string comes from our own Terraform output (it carries quoted network configuration).
 task=$(eval "$run_command --query 'tasks[0].taskArn' --output text")
