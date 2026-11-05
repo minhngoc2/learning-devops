@@ -70,9 +70,8 @@ func runSQS(t *testing.T, q *fakeQueue, log *slog.Logger, want int, h Handler) e
 			err := h(ctx, e)
 			mu.Lock()
 			seen++
-			if seen == want {
-				// Let Run finish the batch (the delete) before the cancel.
-				defer func() { go func() { time.Sleep(50 * time.Millisecond); cancel() }() }()
+			if seen == want { // cancel shortly after, so Run still finishes the batch (the delete)
+				go func() { time.Sleep(50 * time.Millisecond); cancel() }()
 			}
 			mu.Unlock()
 			return err
