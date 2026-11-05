@@ -84,9 +84,28 @@ function authHeaders(token: string | null): Record<string, string> {
 
 export function useApi() {
   const token = useState<string | null>('idToken', () => (import.meta.client ? localStorage.getItem(TOKEN_KEY) : null))
+  const loggedIn = useState<boolean>('loggedIn', () => !!token.value)
+  const customer = useState<Customer | null>('customer', () => null)
+  // Captured now: request() runs after an await, outside the setup context navigateTo needs.
+  const nuxtApp = useNuxtApp()
 
-  async function request<T>(path: string, opts: { method?: string, body?: unknown } = {}): Promise<T> {
-    const headers: Record<string, string> = { Accept: 'application/json', ...authHeaders(token.value) }
+  function setToken(value: string) {
+    token.value = value
+    loggedIn.value = true
+    localStorage.setItem(TOKEN_KEY, value)
+  }
+
+  function clearToken() {
+    token.value = null
+    loggedIn.value = false
+    customer.value = null
+    localStorage.removeItem(TOKEN_KEY)
+  }
+
+  // public: login and register, which answer 401 for bad credentials and must not end a session.
+  async function request<T>(path: string, opts: { method?: string, body?: unknown, public?: boolean } = {}): Promise<T> {
+    const sent = opts.public ? null : token.value
+    const headers: Record<string, string> = { Accept: 'application/json', ...authHeaders(sent) }
     if (opts.body !== undefined) headers['Content-Type'] = 'application/json'
     const res = await fetch(path, {
       method: opts.method ?? 'GET',
@@ -104,10 +123,20 @@ export function useApi() {
     }
     if (!res.ok) {
       const msg = (data as { error?: string } | null)?.error ?? `${res.status} ${res.statusText}`
+      // An expired or invalid token: drop the session and log in again. A 403 (WAF block, origin check)
+      // says nothing about the token, so it keeps the session.
+      if (res.status === 401 && sent) {
+        clearToken()
+        const here = nuxtApp.$router.currentRoute.value
+        if (here.path !== '/login') {
+          void nuxtApp.runWithContext(() => navigateTo({ path: '/login', query: { redirect: here.fullPath } }))
+        }
+        throw new ApiError(401, 'Your session has expired. Please log in again.')
+      }
       throw new ApiError(res.status, msg)
     }
     return data as T
   }
 
-  return { token, request }
+  return { token, loggedIn, customer, setToken, clearToken, request }
 }

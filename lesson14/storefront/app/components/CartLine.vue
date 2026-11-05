@@ -2,9 +2,16 @@
 const props = defineProps<{ item: CartItem, product?: Product, busy?: boolean }>()
 const emit = defineEmits<{ update: [productId: string, quantity: number] }>()
 
+// Only a whole number 0..99 is sent. Anything else (empty, "1.5", "abc", 150) puts the input back to
+// the current quantity and sends nothing.
 function onChange(e: Event) {
-  const raw = Number((e.target as HTMLInputElement).value)
-  const qty = Number.isFinite(raw) ? Math.min(Math.max(Math.trunc(raw), 0), MAX_QUANTITY) : props.item.quantity
+  const input = e.target as HTMLInputElement
+  const raw = input.value.trim()
+  const qty = Number(raw)
+  if (!/^\d+$/.test(raw) || qty > MAX_QUANTITY) {
+    input.value = String(props.item.quantity)
+    return
+  }
   emit('update', props.item.product_id, qty)
 }
 </script>

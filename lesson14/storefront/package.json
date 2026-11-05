@@ -4,10 +4,8 @@
   "private": true,
   "packageManager": "pnpm@12.14.0",
   "scripts": {
-    "build": "nuxt build",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
-    "preview": "pnpm dlx serve .output/public",
     "typecheck": "nuxi typecheck",
     "postinstall": "nuxt prepare"
   },

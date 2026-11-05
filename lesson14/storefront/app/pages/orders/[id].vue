@@ -2,6 +2,8 @@
 definePageMeta({ middleware: 'auth' })
 
 const POLL_MS = 2000
+const POLL_LIMIT_MS = 5 * 60 * 1000
+const MAX_FAILURES = 3
 const route = useRoute()
 const { request } = useApi()
 const { setQuantity } = useCart()
@@ -10,26 +12,42 @@ const id = encodeURIComponent(String(route.params.id))
 const order = ref<Order | null>(null)
 const payment = ref<Payment | null>(null)
 const error = ref('')
+const timedOut = ref(false)
 const readding = ref(false)
 const readded = ref(false)
 let timer: ReturnType<typeof setTimeout> | undefined
 let stopped = false
+let failures = 0
+const deadline = Date.now() + POLL_LIMIT_MS
 
 // Poll the order while payment is pending; once it settles, fetch the payment (404 until it exists).
+// Stops on 401/403 (useApi has already sent a 401 to /login), after 3 server or network failures in a
+// row, on a missing order, and after 5 minutes.
 async function poll() {
   try {
     order.value = await request<Order>(`/api/orders/${id}`)
     error.value = ''
+    failures = 0
     if (order.value.status !== 'PENDING_PAYMENT') {
       payment.value = await request<Payment>(`/api/payments/${id}`)
       return
     }
   } catch (e) {
-    const notFound = e instanceof ApiError && e.status === 404
-    if (!(notFound && order.value)) {
+    const status = e instanceof ApiError ? e.status : 0
+    if (status === 404 && order.value) {
+      // The order has settled but Payment has not stored its record yet: keep polling.
+    } else if (status >= 400 && status < 500) {
+      // 401 (useApi is already redirecting), 403 (WAF), or an order that is not yours.
       error.value = (e as Error).message
-      if (notFound) return
+      return
+    } else if (++failures >= MAX_FAILURES) {
+      error.value = (e as Error).message
+      return
     }
+  }
+  if (Date.now() >= deadline) {
+    timedOut.value = order.value?.status === 'PENDING_PAYMENT'
+    return
   }
   if (!stopped) timer = setTimeout(poll, POLL_MS)
 }
@@ -45,10 +63,9 @@ async function addBackToCart() {
   readding.value = true
   error.value = ''
   try {
-    const cart = await request<Cart>('/api/cart')
+    // Absolute quantities (the order's), so pressing the button again after a failure is safe.
     for (const item of order.value.items) {
-      const current = cart.items.find(i => i.product_id === item.product_id)?.quantity ?? 0
-      await setQuantity(item.product_id, Math.min(current + item.quantity, MAX_QUANTITY))
+      await setQuantity(item.product_id, Math.min(item.quantity, MAX_QUANTITY))
     }
     readded.value = true
   } catch (e) {
@@ -87,7 +104,11 @@ async function addBackToCart() {
       </div>
 
       <div class="card outcome">
-        <p v-if="order.status === 'PENDING_PAYMENT'" class="muted">Waiting for the payment service… (checking every 2 s)</p>
+        <p v-if="order.status === 'PENDING_PAYMENT' && timedOut" class="muted">
+          Payment is still pending — refresh the page to check again.
+        </p>
+        <p v-else-if="order.status === 'PENDING_PAYMENT' && !error" class="muted">Waiting for the payment service… (checking every 2 s)</p>
+        <p v-else-if="order.status === 'PENDING_PAYMENT'" class="muted">Payment is pending; checking stopped.</p>
         <template v-else-if="order.status === 'PAID'">
           <p class="ok">Payment succeeded. Thank you for your order!</p>
         </template>

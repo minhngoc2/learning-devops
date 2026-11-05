@@ -7,18 +7,12 @@ const password = ref('')
 const error = ref('')
 const busy = ref(false)
 
-// Only same-site paths, so ?redirect= cannot send the user to another origin.
-function target(): string {
-  const r = route.query.redirect
-  return typeof r === 'string' && r.startsWith('/') && !r.startsWith('//') ? r : '/'
-}
-
 async function submit() {
   busy.value = true
   error.value = ''
   try {
     await login(email.value.trim(), password.value)
-    await navigateTo(target())
+    await navigateTo(redirectTarget(route.query.redirect))
   } catch (e) {
     error.value = (e as Error).message
   } finally {

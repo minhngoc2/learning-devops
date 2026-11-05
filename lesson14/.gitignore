@@ -7,7 +7,6 @@
 !/terraform/modules/*/README.md
 
 # Local build artifacts.
-/build/
 .DS_Store
 .env
 **/.terraform/*
@@ -25,3 +24,6 @@ crash.*.log
 /storefront/.nuxt/
 /storefront/.output/
 /storefront/dist
+/storefront/.nitro/
+/storefront/.cache/
+/storefront/.env*
