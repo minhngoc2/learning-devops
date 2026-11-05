@@ -5,6 +5,10 @@
 
 x-service: &service
   restart: on-failure
+  healthcheck: # the image's 30 s interval would hold the router back that long
+    test: ["CMD", "/app", "-healthcheck"]
+    interval: 2s
+    retries: 15
   depends_on: &service-deps
     db-init:
       condition: service_completed_successfully
