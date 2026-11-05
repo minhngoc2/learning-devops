@@ -151,7 +151,9 @@ module "service" {
   log_retention_days         = var.log_retention_days
 
   # The DB services crash until db-init has created their roles; all six wait (harmless for cart and notification).
-  depends_on = [terraform_data.db_init]
+  # db_init: the schemas and roles must exist before the services start.
+  # alb: ECS rejects a service whose target group has no listener rule attached yet.
+  depends_on = [terraform_data.db_init, module.alb]
 }
 
 # One-off task (no service): creates schemas, svc_* roles and grants with the RDS master password. terraform_data.db_init
