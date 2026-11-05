@@ -1,0 +1,19 @@
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.plan
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+!*.tfvars.json.example
+*.backend.hcl
+!*.backend.hcl.example
+*.pem
+*.key
+.env
+.DS_Store
+# Root provider lock files should be committed; standalone child test locks are not consumed.
+modules/**/.terraform.lock.hcl
