@@ -609,7 +609,7 @@ DLQ_URL="$(aws sqs get-queue-url --queue-name lesson14-dev-notification-order-ev
 aws sqs get-queue-attributes --queue-url "$Q_URL" --attribute-names ApproximateNumberOfMessages
 ```
 
-After 5 minutes with no running task, `lesson14-dev-notification-under-desired` should go to `ALARM` (TODO: confirm in the live run; if Container Insights stops reporting a service with no tasks, the alarm shows `INSUFFICIENT_DATA` instead).
+After 5 minutes with no running task, `lesson14-dev-notification-under-desired` goes to `ALARM`: the alarm treats missing `RunningTaskCount` datapoints as breaching, because Container Insights stops reporting a service that has no tasks (TODO: confirm the timing in the live run).
 
 **Restore** the worker and see the waiting emails go out:
 

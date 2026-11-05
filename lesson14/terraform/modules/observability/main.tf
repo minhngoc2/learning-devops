@@ -118,8 +118,11 @@ resource "aws_cloudwatch_metric_alarm" "service_under_desired" {
   evaluation_periods  = 5
   comparison_operator = "LessThanThreshold"
   threshold           = var.desired_counts[each.key]
-  alarm_actions       = [aws_sns_topic.ops.arn]
-  ok_actions          = [aws_sns_topic.ops.arn]
+  # Container Insights stops emitting RunningTaskCount when a service has no tasks at all,
+  # which is exactly the case this alarm must catch: treat the missing datapoints as breaching.
+  treat_missing_data = "breaching"
+  alarm_actions      = [aws_sns_topic.ops.arn]
+  ok_actions         = [aws_sns_topic.ops.arn]
 }
 
 resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
