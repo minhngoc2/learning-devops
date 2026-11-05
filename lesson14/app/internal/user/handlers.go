@@ -63,12 +63,12 @@ func (h handlers) register(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	case err != nil:
-		h.internal(w, "register", err)
+		httpx.Internal(w, h.log, "register", err)
 		return
 	}
 	c := Customer{Sub: sub, Email: email, DisplayName: name, CreatedAt: time.Now().UTC()}
 	if err := h.store.Create(r.Context(), c); err != nil {
-		h.internal(w, "store customer", err)
+		httpx.Internal(w, h.log, "store customer", err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, c)
@@ -90,7 +90,7 @@ func (h handlers) login(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrInvalidCredentials):
 		httpx.WriteError(w, http.StatusUnauthorized, "invalid credentials")
 	default:
-		h.internal(w, "login", err)
+		httpx.Internal(w, h.log, "login", err)
 	}
 }
 
@@ -103,11 +103,6 @@ func (h handlers) me(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "customer not found")
 	default:
-		h.internal(w, "get customer", err)
+		httpx.Internal(w, h.log, "get customer", err)
 	}
-}
-
-func (h handlers) internal(w http.ResponseWriter, msg string, err error) {
-	h.log.Error(msg, "err", err)
-	httpx.WriteError(w, http.StatusInternalServerError, "internal error")
 }

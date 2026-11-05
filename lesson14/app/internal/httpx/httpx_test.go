@@ -1,7 +1,10 @@
 package httpx
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -77,12 +80,28 @@ func TestHealthcheckFlag_ScansArgsWithoutFlagParse(t *testing.T) {
 		"other flags only": {[]string{"-port=1", "healthcheck"}, false},
 	}
 	for name, c := range cases {
-		if got := hasHealthcheckArg(c.args); got != c.want {
-			t.Errorf("%s: hasHealthcheckArg(%v) = %v, want %v", name, c.args, got, c.want)
+		if got := HasHealthcheckArg(c.args); got != c.want {
+			t.Errorf("%s: HasHealthcheckArg(%v) = %v, want %v", name, c.args, got, c.want)
 		}
 	}
 	// The test binary's own -test.* args carry no -healthcheck, so this must return without probing.
 	if HealthcheckFlag("1") {
 		t.Error("HealthcheckFlag = true without -healthcheck")
+	}
+}
+
+func TestInternal_LogsErrorAndHidesIt(t *testing.T) {
+	var logs bytes.Buffer
+	rec := httptest.NewRecorder()
+	Internal(rec, slog.New(slog.NewJSONHandler(&logs, nil)), "get cart", errors.New("dynamodb: boom"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if got := strings.TrimSpace(rec.Body.String()); got != `{"error":"internal error"}` {
+		t.Errorf("body = %s", got)
+	}
+	var line map[string]any
+	if err := json.Unmarshal(logs.Bytes(), &line); err != nil || line["level"] != "ERROR" || line["msg"] != "get cart" || line["err"] != "dynamodb: boom" {
+		t.Errorf("log = %s (err %v)", logs.String(), err)
 	}
 }

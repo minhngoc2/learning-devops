@@ -33,7 +33,8 @@ func Validate(roles map[string]string) error {
 // Statements returns, per service in order: create the schema, create the role if missing, set its
 // password, let it use and create objects in its own schema only, give it every table created there later,
 // and revoke PUBLIC's default access. ALTER ROLE cannot take a bind parameter, so the password is a quoted
-// literal with single quotes doubled (standard_conforming_strings is on, so backslashes are literal).
+// literal with single quotes doubled; cmd/db-init runs SET LOCAL standard_conforming_strings = on first, so
+// backslashes are literal.
 // Statements panics if Validate(roles) fails; call Validate first.
 func Statements(roles map[string]string) []string {
 	if err := Validate(roles); err != nil {

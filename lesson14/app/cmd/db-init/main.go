@@ -9,10 +9,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"net/url"
 	"os"
 	"os/signal"
-	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -22,12 +21,13 @@ import (
 	"github.com/minhngoc2/learning-devops/lesson14/internal/config"
 	"github.com/minhngoc2/learning-devops/lesson14/internal/dbinit"
 	"github.com/minhngoc2/learning-devops/lesson14/internal/httpx"
+	"github.com/minhngoc2/learning-devops/lesson14/internal/pg"
 )
 
 func main() {
 	// The shared image's HEALTHCHECK runs "/app -healthcheck"; db-init serves nothing, so answer healthy
 	// instead of running the bootstrap a second time.
-	if slices.ContainsFunc(os.Args[1:], func(a string) bool { return strings.TrimLeft(a, "-") == "healthcheck" }) {
+	if httpx.HasHealthcheckArg(os.Args[1:]) {
 		return
 	}
 	log := httpx.NewLogger()
@@ -56,22 +56,23 @@ func run(log *slog.Logger) error {
 		return errors.New("DB_ADMIN_USER and DB_NAME must be set")
 	}
 
-	u := url.URL{
-		Scheme:   "postgres",
-		User:     url.UserPassword(admin, config.Get("DB_ADMIN_PASSWORD", "")),
-		Host:     net.JoinHostPort(config.Get("DB_HOST", "localhost"), config.Get("DB_PORT", "5432")),
-		Path:     dbName,
-		RawQuery: url.Values{"sslmode": {config.Get("DB_SSLMODE", "require")}}.Encode(),
-	}
-	conn, err := pgx.Connect(ctx, u.String())
+	cfg, err := pg.AdminConfigFromEnv(admin, config.Get("DB_ADMIN_PASSWORD", ""))
 	if err != nil {
-		return fmt.Errorf("connect %s as %s: %w", u.Host, admin, err)
+		return err
+	}
+	conn, err := pgx.ConnectConfig(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("connect %s as %s: %w", net.JoinHostPort(cfg.Host, strconv.Itoa(int(cfg.Port))), admin, err)
 	}
 	defer conn.Close(context.Background())
 
 	stmts := dbinit.Statements(roles)
 	perService := len(stmts) / len(dbinit.Services)
 	err = pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
+		// The password literals rely on backslashes being literal; do not trust the server default.
+		if _, err := tx.Exec(ctx, "SET LOCAL standard_conforming_strings = on"); err != nil {
+			return fmt.Errorf("set standard_conforming_strings: %w", err)
+		}
 		for i, stmt := range stmts {
 			if _, err := tx.Exec(ctx, stmt); err != nil {
 				// The statement may hold a password, so name it by position only.

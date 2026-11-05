@@ -1,8 +1,6 @@
 package product
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -12,6 +10,7 @@ import (
 	"time"
 
 	"github.com/minhngoc2/learning-devops/lesson14/internal/httpx"
+	"github.com/minhngoc2/learning-devops/lesson14/internal/ids"
 )
 
 // seedID is the shape of a caller-chosen id (the seed uses stable ids such as p-0001).
@@ -63,7 +62,7 @@ func (h handlers) list(w http.ResponseWriter, r *http.Request) {
 		list, err = h.store.List(r.Context())
 	}
 	if err != nil {
-		h.internal(w, "list products", err)
+		httpx.Internal(w, h.log, "list products", err)
 		return
 	}
 	category := q.Get("category")
@@ -84,7 +83,7 @@ func (h handlers) get(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "product not found")
 	default:
-		h.internal(w, "get product", err)
+		httpx.Internal(w, h.log, "get product", err)
 	}
 }
 
@@ -119,7 +118,7 @@ func (h handlers) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.ID == "" {
-		req.ID = newID()
+		req.ID = ids.New("p-")
 	}
 	p := Product{
 		ID: req.ID, Name: req.Name, Description: req.Description, PriceCents: req.PriceCents,
@@ -132,18 +131,6 @@ func (h handlers) create(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrDuplicate):
 		httpx.WriteError(w, http.StatusConflict, "product id already exists")
 	default:
-		h.internal(w, "create product", err)
+		httpx.Internal(w, h.log, "create product", err)
 	}
-}
-
-func (h handlers) internal(w http.ResponseWriter, msg string, err error) {
-	h.log.Error(msg, "err", err)
-	httpx.WriteError(w, http.StatusInternalServerError, "internal error")
-}
-
-// newID returns "p-" + 8 random hex characters.
-func newID() string {
-	b := make([]byte, 4)
-	_, _ = rand.Read(b) // crypto/rand.Read never fails on supported platforms
-	return "p-" + hex.EncodeToString(b)
 }

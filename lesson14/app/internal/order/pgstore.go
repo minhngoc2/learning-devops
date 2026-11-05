@@ -2,11 +2,12 @@ package order
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/minhngoc2/learning-devops/lesson14/internal/pg"
 )
 
 // DDL creates the service's tables; table names are unqualified because search_path is the orders schema.
@@ -29,10 +30,7 @@ var DDL = []string{
 		quantity         integer NOT NULL CHECK (quantity > 0),
 		PRIMARY KEY (order_id, product_id)
 	)`,
-	`CREATE TABLE IF NOT EXISTS processed_events (
-		event_id     text PRIMARY KEY,
-		processed_at timestamptz NOT NULL DEFAULT now()
-	)`,
+	pg.ProcessedEventsDDL,
 }
 
 type pgStore struct{ pool *pgxpool.Pool }
@@ -135,15 +133,5 @@ func (s *pgStore) SetStatus(ctx context.Context, id string, st Status) error {
 }
 
 func (s *pgStore) MarkProcessed(ctx context.Context, eventID string) (bool, error) {
-	var id string
-	err := s.pool.QueryRow(ctx,
-		`INSERT INTO processed_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING RETURNING event_id`,
-		eventID).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("mark event processed: %w", err)
-	}
-	return true, nil
+	return pg.MarkProcessed(ctx, s.pool, eventID)
 }

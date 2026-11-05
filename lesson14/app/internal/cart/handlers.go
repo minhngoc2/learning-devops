@@ -32,7 +32,7 @@ func (h handlers) get(w http.ResponseWriter, r *http.Request) {
 	id, _ := httpx.IdentityFrom(r)
 	c, err := h.store.Get(r.Context(), id.Sub)
 	if err != nil {
-		h.internal(w, "get cart", err)
+		httpx.Internal(w, h.log, "get cart", err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, c)
@@ -61,7 +61,7 @@ func (h handlers) putItem(w http.ResponseWriter, r *http.Request) {
 
 	c, err := h.store.PutItem(r.Context(), id.Sub, productID, qty)
 	if err != nil {
-		h.internal(w, "put cart item", err)
+		httpx.Internal(w, h.log, "put cart item", err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, c)
@@ -70,7 +70,7 @@ func (h handlers) putItem(w http.ResponseWriter, r *http.Request) {
 func (h handlers) clear(w http.ResponseWriter, r *http.Request) {
 	id, _ := httpx.IdentityFrom(r)
 	if err := h.store.Clear(r.Context(), id.Sub); err != nil {
-		h.internal(w, "clear cart", err)
+		httpx.Internal(w, h.log, "clear cart", err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -84,9 +84,4 @@ func parseQuantity(raw json.RawMessage) (int, bool) {
 		return 0, false
 	}
 	return q, true
-}
-
-func (h handlers) internal(w http.ResponseWriter, msg string, err error) {
-	h.log.Error(msg, "err", err)
-	httpx.WriteError(w, http.StatusInternalServerError, "internal error")
 }

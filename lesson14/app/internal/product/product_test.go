@@ -45,7 +45,7 @@ func do(h http.Handler, method, path, sub, body string) *httptest.ResponseRecord
 	return rec
 }
 
-func ids(t *testing.T, rec *httptest.ResponseRecorder) []string {
+func listIDs(t *testing.T, rec *httptest.ResponseRecorder) []string {
 	t.Helper()
 	var list []map[string]any
 	if err := json.NewDecoder(rec.Body).Decode(&list); err != nil {
@@ -65,17 +65,17 @@ func TestList_ByIDs(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
 	}
-	if got := strings.Join(ids(t, rec), ","); got != "p-0001,p-0003" {
+	if got := strings.Join(listIDs(t, rec), ","); got != "p-0001,p-0003" {
 		t.Errorf("ids filter = %s, want p-0001,p-0003 (unknown absent)", got)
 	}
 
-	if got := strings.Join(ids(t, do(h, "GET", "/api/products", "", "")), ","); got != "p-0001,p-0002,p-0003" {
+	if got := strings.Join(listIDs(t, do(h, "GET", "/api/products", "", "")), ","); got != "p-0001,p-0002,p-0003" {
 		t.Errorf("full list = %s", got)
 	}
-	if got := strings.Join(ids(t, do(h, "GET", "/api/products?category=apparel", "", "")), ","); got != "p-0002,p-0003" {
+	if got := strings.Join(listIDs(t, do(h, "GET", "/api/products?category=apparel", "", "")), ","); got != "p-0002,p-0003" {
 		t.Errorf("category filter = %s", got)
 	}
-	if got := ids(t, do(h, "GET", "/api/products?ids=p-9999", "", "")); len(got) != 0 {
+	if got := listIDs(t, do(h, "GET", "/api/products?ids=p-9999", "", "")); len(got) != 0 {
 		t.Errorf("unknown only = %v, want []", got)
 	}
 

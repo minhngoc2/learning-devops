@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 )
 
@@ -19,6 +20,13 @@ func WriteJSON(w http.ResponseWriter, status int, v any) {
 // WriteError writes {"error":msg}.
 func WriteError(w http.ResponseWriter, status int, msg string) {
 	WriteJSON(w, status, map[string]string{"error": msg})
+}
+
+// Internal logs err at error level under msg and answers 500 {"error":"internal error"}, so callers never
+// see internal details.
+func Internal(w http.ResponseWriter, log *slog.Logger, msg string, err error) {
+	log.Error(msg, "err", err)
+	WriteError(w, http.StatusInternalServerError, "internal error")
 }
 
 // DecodeJSON decodes one JSON value from a body of at most 1 MiB; trailing data is an error.

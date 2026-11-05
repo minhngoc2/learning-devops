@@ -2,14 +2,13 @@ package payment
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/minhngoc2/learning-devops/lesson14/internal/events"
+	"github.com/minhngoc2/learning-devops/lesson14/internal/ids"
 )
 
 // ConsumerName is this service's queue on the local bus (on AWS, QUEUE_URL already names it).
@@ -68,7 +67,7 @@ func (s *Service) HandleEvent(ctx context.Context, e events.Event) error {
 
 	status, reason := Decide(e.TotalCents)
 	p := Payment{
-		ID:          newID("pay-"),
+		ID:          ids.New("pay-"),
 		OrderID:     e.OrderID,
 		CustomerSub: e.CustomerSub,
 		AmountCents: e.TotalCents,
@@ -96,11 +95,4 @@ func (s *Service) HandleEvent(ctx context.Context, e events.Event) error {
 	}
 	s.log.Info("payment recorded", "payment_id", p.ID, "order_id", p.OrderID, "status", p.Status, "amount_cents", p.AmountCents)
 	return nil
-}
-
-// newID returns prefix + 8 random hex characters.
-func newID(prefix string) string {
-	b := make([]byte, 4)
-	_, _ = rand.Read(b) // crypto/rand.Read never fails on supported platforms
-	return prefix + hex.EncodeToString(b)
 }

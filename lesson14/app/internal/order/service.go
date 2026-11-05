@@ -2,8 +2,6 @@ package order
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,6 +9,7 @@ import (
 
 	"github.com/minhngoc2/learning-devops/lesson14/internal/events"
 	"github.com/minhngoc2/learning-devops/lesson14/internal/httpx"
+	"github.com/minhngoc2/learning-devops/lesson14/internal/ids"
 )
 
 // ErrEmptyCart: checkout of a cart with no lines (422).
@@ -47,17 +46,17 @@ func (s *Service) Checkout(ctx context.Context, id httpx.Identity) (Order, error
 		return Order{}, ErrEmptyCart
 	}
 
-	ids := make([]string, len(lines))
+	productIDs := make([]string, len(lines))
 	for i, l := range lines {
-		ids[i] = l.ProductID
+		productIDs[i] = l.ProductID
 	}
-	products, err := s.products.ByIDs(ctx, ids)
+	products, err := s.products.ByIDs(ctx, productIDs)
 	if err != nil {
 		return Order{}, fmt.Errorf("read products: %w", err)
 	}
 
 	now := time.Now().UTC()
-	o := Order{ID: newID("ord-"), CustomerSub: id.Sub, Status: PendingPayment, Currency: currency, Items: make([]Item, 0, len(lines)), CreatedAt: now, UpdatedAt: now}
+	o := Order{ID: ids.New("ord-"), CustomerSub: id.Sub, Status: PendingPayment, Currency: currency, Items: make([]Item, 0, len(lines)), CreatedAt: now, UpdatedAt: now}
 	for _, l := range lines {
 		p, ok := products[l.ProductID]
 		if !ok {
@@ -132,11 +131,4 @@ func (s *Service) HandleEvent(ctx context.Context, e events.Event) error {
 	}
 	s.log.Info("order status updated", "order_id", e.OrderID, "status", target, "event_id", e.EventID)
 	return nil
-}
-
-// newID returns prefix + 8 random hex characters.
-func newID(prefix string) string {
-	b := make([]byte, 4)
-	_, _ = rand.Read(b) // crypto/rand.Read never fails on supported platforms
-	return prefix + hex.EncodeToString(b)
 }

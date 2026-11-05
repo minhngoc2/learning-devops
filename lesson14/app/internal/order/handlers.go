@@ -35,7 +35,7 @@ func (h handlers) checkout(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrEmptyCart), errors.As(err, &unknown):
 		httpx.WriteError(w, http.StatusUnprocessableEntity, err.Error())
 	default:
-		h.internal(w, "checkout", err)
+		httpx.Internal(w, h.log, "checkout", err)
 	}
 }
 
@@ -43,7 +43,7 @@ func (h handlers) list(w http.ResponseWriter, r *http.Request) {
 	id, _ := httpx.IdentityFrom(r)
 	orders, err := h.svc.List(r.Context(), id.Sub)
 	if err != nil {
-		h.internal(w, "list orders", err)
+		httpx.Internal(w, h.log, "list orders", err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, orders)
@@ -58,11 +58,6 @@ func (h handlers) get(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "order not found")
 	default:
-		h.internal(w, "get order", err)
+		httpx.Internal(w, h.log, "get order", err)
 	}
-}
-
-func (h handlers) internal(w http.ResponseWriter, msg string, err error) {
-	h.log.Error(msg, "err", err)
-	httpx.WriteError(w, http.StatusInternalServerError, "internal error")
 }

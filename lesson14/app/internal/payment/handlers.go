@@ -22,8 +22,7 @@ func Routes(s *Service, log *slog.Logger) http.Handler {
 		case errors.Is(err, ErrNotFound):
 			httpx.WriteError(w, http.StatusNotFound, "payment not found")
 		default:
-			log.Error("get payment", "err", err)
-			httpx.WriteError(w, http.StatusInternalServerError, "internal error")
+			httpx.Internal(w, log, "get payment", err)
 		}
 	})))
 	return httpx.Logging(log, mux)

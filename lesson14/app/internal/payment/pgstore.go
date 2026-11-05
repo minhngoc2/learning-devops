@@ -8,6 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/minhngoc2/learning-devops/lesson14/internal/pg"
 )
 
 // DDL creates the service's tables; table names are unqualified because search_path is the payments schema.
@@ -21,10 +23,7 @@ var DDL = []string{
 		reason       text NOT NULL DEFAULT '',
 		created_at   timestamptz NOT NULL DEFAULT now()
 	)`,
-	`CREATE TABLE IF NOT EXISTS processed_events (
-		event_id     text PRIMARY KEY,
-		processed_at timestamptz NOT NULL DEFAULT now()
-	)`,
+	pg.ProcessedEventsDDL,
 }
 
 type pgStore struct{ pool *pgxpool.Pool }
@@ -63,15 +62,5 @@ func (s *pgStore) ByOrder(ctx context.Context, orderID, sub string) (Payment, er
 }
 
 func (s *pgStore) MarkProcessed(ctx context.Context, eventID string) (bool, error) {
-	var id string
-	err := s.pool.QueryRow(ctx,
-		`INSERT INTO processed_events (event_id) VALUES ($1) ON CONFLICT (event_id) DO NOTHING RETURNING event_id`,
-		eventID).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("mark event processed: %w", err)
-	}
-	return true, nil
+	return pg.MarkProcessed(ctx, s.pool, eventID)
 }

@@ -55,7 +55,7 @@ func Run(ctx context.Context, srv *http.Server, log *slog.Logger) error {
 // probes http://127.0.0.1:<port>/health (the distroless image has no curl): it exits 1 on failure and
 // returns true on success, so main can simply return.
 func HealthcheckFlag(port string) (handled bool) {
-	if !hasHealthcheckArg(os.Args[1:]) {
+	if !HasHealthcheckArg(os.Args[1:]) {
 		return false
 	}
 
@@ -71,7 +71,8 @@ func HealthcheckFlag(port string) (handled bool) {
 	return true
 }
 
-func hasHealthcheckArg(args []string) bool {
+// HasHealthcheckArg reports whether args hold -healthcheck or --healthcheck (optionally =true).
+func HasHealthcheckArg(args []string) bool {
 	return slices.ContainsFunc(args, func(a string) bool {
 		return a == "-healthcheck" || a == "--healthcheck" || a == "-healthcheck=true" || a == "--healthcheck=true"
 	})
