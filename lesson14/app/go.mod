@@ -6,6 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.47.6
 	github.com/aws/aws-sdk-go-v2/config v1.33.14
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.21.18
+	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.75.8
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.73.0
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.79.6
 	github.com/aws/aws-sdk-go-v2/service/sns v1.47.8
