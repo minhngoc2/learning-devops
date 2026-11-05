@@ -10,6 +10,6 @@ Reusable module: a private, versioned, encrypted S3 bucket for Terraform remote 
 Outputs: `bucket_name`, `bucket_arn`.
 
 > [!WARNING]
-> The bucket has `prevent_destroy = true`, so `terraform destroy` fails on purpose. To remove it, first destroy every stack whose state it holds, then follow the [quickstart's last step](../../../quickstart.md#9-optional-remove-the-state-bucket).
+> The bucket has `prevent_destroy = true`, so `terraform destroy` fails on purpose. To remove it, first destroy every stack whose state it holds, then follow the [quickstart's last step](../../../quickstart.md#13-optional-remove-the-state-bucket).
 
 Example use: the [bootstrap root](../../bootstrap/main.tf).
