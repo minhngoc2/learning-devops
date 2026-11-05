@@ -8,9 +8,11 @@ import (
 	"time"
 )
 
+type Status string
+
 const (
-	Succeeded = "SUCCEEDED"
-	Failed    = "FAILED"
+	Succeeded Status = "SUCCEEDED"
+	Failed    Status = "FAILED"
 )
 
 // Payment is what GET /api/payments/{orderId} returns; one per order.
@@ -19,7 +21,7 @@ type Payment struct {
 	OrderID     string    `json:"order_id"`
 	CustomerSub string    `json:"customer_sub"`
 	AmountCents int64     `json:"amount_cents"`
-	Status      string    `json:"status"`
+	Status      Status    `json:"status"`
 	Reason      string    `json:"reason"`
 	CreatedAt   time.Time `json:"created_at"`
 }

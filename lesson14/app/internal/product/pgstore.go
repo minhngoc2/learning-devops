@@ -22,7 +22,6 @@ var DDL = []string{
 		image_key   text NOT NULL DEFAULT '',
 		created_at  timestamptz NOT NULL DEFAULT now()
 	)`,
-	`CREATE INDEX IF NOT EXISTS products_category_idx ON products (category)`,
 }
 
 type pgStore struct{ pool *pgxpool.Pool }

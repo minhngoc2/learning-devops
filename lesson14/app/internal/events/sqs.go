@@ -53,9 +53,11 @@ func (c *sqsConsumer) Run(ctx context.Context, h Handler) error {
 				c.log.Error("sqs message is not an event; leaving it for the DLQ", "message_id", aws.ToString(m.MessageId), "err", err)
 				continue
 			}
-			if err := h(ctx, e); err != nil {
-				c.log.Error("handle event; leaving it for redelivery", "event_id", e.EventID, "event_type", e.EventType, "err", err)
-				continue
+			if !incomplete(c.log, e) {
+				if err := h(ctx, e); err != nil {
+					c.log.Error("handle event; leaving it for redelivery", "event_id", e.EventID, "event_type", e.EventType, "err", err)
+					continue
+				}
 			}
 			// Delete even if ctx was just cancelled: the work is done.
 			if _, err := c.api.DeleteMessage(context.WithoutCancel(ctx), &sqs.DeleteMessageInput{

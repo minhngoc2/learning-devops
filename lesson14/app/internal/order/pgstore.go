@@ -122,14 +122,23 @@ func (s *pgStore) query(ctx context.Context, sql string, args ...any) ([]Order, 
 }
 
 func (s *pgStore) SetStatus(ctx context.Context, id string, st Status) error {
-	tag, err := s.pool.Exec(ctx, `UPDATE orders SET status = $2, updated_at = now() WHERE id = $1`, id, string(st))
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE orders SET status = $2, updated_at = now() WHERE id = $1 AND status = 'PENDING_PAYMENT'`, id, string(st))
 	if err != nil {
 		return fmt.Errorf("update order status: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
+	if tag.RowsAffected() == 1 {
+		return nil
+	}
+	// Nothing updated: tell a missing order from one that already left PENDING_PAYMENT.
+	var exists bool
+	if err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM orders WHERE id = $1)`, id).Scan(&exists); err != nil {
+		return fmt.Errorf("check order %s: %w", id, err)
+	}
+	if !exists {
 		return ErrNotFound
 	}
-	return nil
+	return ErrNotPending
 }
 
 func (s *pgStore) MarkProcessed(ctx context.Context, eventID string) (bool, error) {

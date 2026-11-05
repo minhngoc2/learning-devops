@@ -16,13 +16,20 @@ import (
 // seedID is the shape of a caller-chosen id (the seed uses stable ids such as p-0001).
 var seedID = regexp.MustCompile(`^p-[a-z0-9-]{1,32}$`)
 
+const (
+	// currency is the only one the shop sells in (money is integer cents + "VND").
+	currency = "VND"
+	// maxIDs caps ?ids= (distinct ids); a checkout never needs more lines than a cart can hold.
+	maxIDs = 100
+)
+
 // view is the API shape: the stored product plus image_url.
 type view struct {
 	Product
 	ImageURL string `json:"image_url"`
 }
 
-// Routes mounts GET /api/products (?ids=a,b filters by id, unknown ids are absent; ?category= filters by
+// Routes mounts GET /api/products (?ids=a,b filters by id, at most 100 distinct, unknown ids are absent; ?category= filters by
 // category), GET /api/products/{id}, POST /api/products (needs an identity; 201) and GET /health.
 // publicBaseURL is where /images/* is served (CloudFront on AWS).
 func Routes(s Store, publicBaseURL string, log *slog.Logger) http.Handler {
@@ -56,8 +63,14 @@ func (h handlers) list(w http.ResponseWriter, r *http.Request) {
 		err  error
 	)
 	if q.Has("ids") {
-		ids := slices.DeleteFunc(strings.Split(q.Get("ids"), ","), func(s string) bool { return s == "" })
-		list, err = h.store.ByIDs(r.Context(), ids)
+		wanted := slices.DeleteFunc(strings.Split(q.Get("ids"), ","), func(s string) bool { return s == "" })
+		slices.Sort(wanted)
+		wanted = slices.Compact(wanted)
+		if len(wanted) > maxIDs {
+			httpx.WriteError(w, http.StatusBadRequest, "too many ids (max 100)")
+			return
+		}
+		list, err = h.store.ByIDs(r.Context(), wanted)
 	} else {
 		list, err = h.store.List(r.Context())
 	}
@@ -110,8 +123,8 @@ func (h handlers) create(w http.ResponseWriter, r *http.Request) {
 	case req.PriceCents <= 0:
 		httpx.WriteError(w, http.StatusBadRequest, "price_cents must be positive")
 		return
-	case strings.TrimSpace(req.Currency) == "":
-		httpx.WriteError(w, http.StatusBadRequest, "currency is required")
+	case req.Currency != currency:
+		httpx.WriteError(w, http.StatusBadRequest, "currency must be VND")
 		return
 	case req.ID != "" && !seedID.MatchString(req.ID):
 		httpx.WriteError(w, http.StatusBadRequest, "id must match ^p-[a-z0-9-]{1,32}$")

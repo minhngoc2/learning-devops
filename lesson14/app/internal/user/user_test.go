@@ -18,9 +18,10 @@ import (
 
 // fakeAuth registers emails in a map; Login succeeds only with the registered password.
 type fakeAuth struct {
-	users map[string]string // email → password
-	subs  map[string]string // email → sub
-	n     int
+	users  map[string]string // email → password
+	subs   map[string]string // email → sub
+	logins int
+	n      int
 }
 
 // Like Cognito after the retry fix, registering a known email returns its existing sub.
@@ -35,6 +36,7 @@ func (f *fakeAuth) Register(_ context.Context, email, password, _ string) (strin
 }
 
 func (f *fakeAuth) Login(_ context.Context, email, password string) (Tokens, error) {
+	f.logins++
 	if pw, ok := f.users[email]; !ok || pw != password {
 		return Tokens{}, ErrInvalidCredentials
 	}
@@ -339,5 +341,24 @@ func TestRegister_RetryAfterPartialFailureCompletes(t *testing.T) {
 	}
 	if c, _ := s.Get(context.Background(), "cognito-sub"); c.DisplayName != "Alice" {
 		t.Errorf("display_name = %q after a conflicting register, want Alice", c.DisplayName)
+	}
+}
+
+func TestLogin_EmptyCredentials401WithoutCallingAuth(t *testing.T) {
+	a := &fakeAuth{users: map[string]string{"alice@example.com": ""}, subs: map[string]string{}}
+	h := Routes(a, NewMemoryStore(), slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	for _, body := range []string{
+		`{"email":"","password":"Passw0rd!"}`,
+		`{"email":"  ","password":"Passw0rd!"}`,
+		`{"email":"alice@example.com","password":""}`,
+		`{}`,
+	} {
+		rec := do(h, "POST", "/api/users/login", "", body)
+		if rec.Code != http.StatusUnauthorized || strings.TrimSpace(rec.Body.String()) != `{"error":"invalid credentials"}` {
+			t.Errorf("%s → %d %s, want 401 invalid credentials", body, rec.Code, rec.Body)
+		}
+	}
+	if a.logins != 0 {
+		t.Errorf("Auth.Login called %d times, want 0", a.logins)
 	}
 }

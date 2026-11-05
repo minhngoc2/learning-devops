@@ -17,7 +17,7 @@ const ConsumerName = "payment"
 const declinedReason = "card declined (demo rule: totals ending in 99)"
 
 // Decide is the lab's deterministic card: a total whose cents end in 99 is declined, anything else is paid.
-func Decide(totalCents int64) (status, reason string) {
+func Decide(totalCents int64) (status Status, reason string) {
 	if totalCents%100 == 99 {
 		return Failed, declinedReason
 	}

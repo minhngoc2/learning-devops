@@ -86,7 +86,12 @@ func (h handlers) login(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	tok, err := h.auth.Login(r.Context(), normalizeEmail(req.Email), req.Password)
+	email := normalizeEmail(req.Email)
+	if email == "" || req.Password == "" {
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid credentials")
+		return
+	}
+	tok, err := h.auth.Login(r.Context(), email, req.Password)
 	switch {
 	case err == nil:
 		httpx.WriteJSON(w, http.StatusOK, tok)

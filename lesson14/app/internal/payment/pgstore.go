@@ -35,7 +35,7 @@ func (s *pgStore) Create(ctx context.Context, p Payment) error {
 	_, err := s.pool.Exec(ctx,
 		`INSERT INTO payments (id, order_id, customer_sub, amount_cents, status, reason, created_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		p.ID, p.OrderID, p.CustomerSub, p.AmountCents, p.Status, p.Reason, p.CreatedAt)
+		p.ID, p.OrderID, p.CustomerSub, p.AmountCents, string(p.Status), p.Reason, p.CreatedAt)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "payments_order_id_key" {
 		return ErrDuplicateOrder

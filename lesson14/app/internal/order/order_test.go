@@ -327,3 +327,26 @@ func TestHTTPClients_SendIdentityAndOriginHeaders(t *testing.T) {
 		t.Errorf("requests:\n%s\nwant:\n%s", strings.Join(seen, "\n"), strings.Join(want, "\n"))
 	}
 }
+
+func TestHandleEvent_OnlyPendingOrdersTransition(t *testing.T) {
+	f := newFixture()
+	ctx := context.Background()
+	o, _ := f.svc.Checkout(ctx, httpx.Identity{Sub: "sub-1"})
+
+	if err := f.svc.HandleEvent(ctx, events.New(events.PaymentSucceeded, o.ID, "sub-1", "", o.TotalCents)); err != nil {
+		t.Fatalf("HandleEvent succeeded: %v", err)
+	}
+	// A late, conflicting outcome (a different event id) must not move a PAID order, and is acked.
+	if err := f.svc.HandleEvent(ctx, events.New(events.PaymentFailed, o.ID, "sub-1", "", o.TotalCents)); err != nil {
+		t.Fatalf("HandleEvent failed-after-paid: %v, want nil (ack)", err)
+	}
+	if got, _ := f.store.Get(ctx, o.ID, "sub-1"); got.Status != Paid {
+		t.Errorf("status = %s, want PAID", got.Status)
+	}
+	if err := f.store.SetStatus(ctx, o.ID, PaymentFailed); !errors.Is(err, ErrNotPending) {
+		t.Errorf("memory SetStatus on a PAID order = %v, want ErrNotPending", err)
+	}
+	if err := f.store.SetStatus(ctx, "ord-missing", Paid); !errors.Is(err, ErrNotFound) {
+		t.Errorf("SetStatus on a missing order = %v, want ErrNotFound", err)
+	}
+}

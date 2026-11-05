@@ -41,8 +41,9 @@ func newService() (*Service, *countingStore, *fakePublisher) {
 
 func TestDecide_Rule(t *testing.T) {
 	cases := []struct {
-		total              int64
-		wantStatus, reason string
+		total      int64
+		wantStatus Status
+		reason     string
 	}{
 		{1999, Failed, "card declined (demo rule: totals ending in 99)"},
 		{2000, Succeeded, ""},
@@ -62,7 +63,7 @@ func TestHandle_CreatesPaymentAndPublishesOutcome(t *testing.T) {
 		name      string
 		total     int64
 		wantType  string
-		wantState string
+		wantState Status
 	}{
 		{"succeeds", 55000, events.PaymentSucceeded, Succeeded},
 		{"fails on 99", 54999, events.PaymentFailed, Failed},
@@ -162,7 +163,7 @@ func TestGetPayment_OtherCustomer404(t *testing.T) {
 			t.Errorf("payment JSON lacks %q: %v", k, body)
 		}
 	}
-	if body["status"] != Failed {
+	if body["status"] != string(Failed) {
 		t.Errorf("status = %v, want FAILED", body["status"])
 	}
 	if rec := do(h, "/api/payments/ord-1", ""); rec.Code != http.StatusUnauthorized {

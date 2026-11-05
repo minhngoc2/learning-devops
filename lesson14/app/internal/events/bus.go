@@ -27,6 +27,16 @@ type Consumer interface {
 	Run(ctx context.Context, h Handler) error
 }
 
+// incomplete reports (and logs at warn) an event without event_id or event_type. Consumers ack such a
+// message without calling the handler: redelivering it cannot help, and handlers dedupe on EventID.
+func incomplete(log *slog.Logger, e Event) bool {
+	if e.EventID != "" && e.EventType != "" {
+		return false
+	}
+	log.Warn("event without event_id or event_type; acking it unhandled", "event_id", e.EventID, "event_type", e.EventType, "order_id", e.OrderID)
+	return true
+}
+
 // PublisherFromEnv picks the bus from EVENT_BUS: "sns" (TOPIC_ARN, AWS_REGION) or "local" (EVENT_BUS_URL).
 func PublisherFromEnv(ctx context.Context) (Publisher, error) {
 	switch bus := config.Get("EVENT_BUS", ""); bus {

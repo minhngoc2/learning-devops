@@ -3,6 +3,7 @@ package product
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -119,6 +120,7 @@ func TestCreate_ValidationAndImageURL(t *testing.T) {
 		`{"name":"Mug","price_cents":-5,"currency":"VND"}`,
 		`{"name":"","price_cents":100,"currency":"VND"}`,
 		`{"name":"Mug","price_cents":100,"currency":""}`,
+		`{"name":"Mug","price_cents":100,"currency":"vnd"}`,
 		`{"id":"bad id","name":"Mug","price_cents":100,"currency":"VND"}`,
 		`not json`,
 	} {
@@ -165,5 +167,47 @@ func TestCreate_Unauthenticated401(t *testing.T) {
 	}
 	if list, _ := s.List(context.Background()); len(list) != 0 {
 		t.Errorf("stored %v, want nothing", list)
+	}
+}
+
+func TestCreate_CurrencyMustBeVND(t *testing.T) {
+	s := NewMemoryStore()
+	rec := do(routes(s), "POST", "/api/products", "sub-1", `{"name":"Mug","price_cents":100,"currency":"USD"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if got := strings.TrimSpace(rec.Body.String()); got != `{"error":"currency must be VND"}` {
+		t.Errorf("body = %s", got)
+	}
+	if list, _ := s.List(context.Background()); len(list) != 0 {
+		t.Errorf("stored %v, want nothing", list)
+	}
+}
+
+func TestList_IDsCappedAt100Distinct(t *testing.T) {
+	h := routes(seeded(t))
+	idList := func(n int, extra ...string) string {
+		out := []string{}
+		for i := range n {
+			out = append(out, fmt.Sprintf("p-%04d", i+1))
+		}
+		return strings.Join(append(out, extra...), ",")
+	}
+
+	// 100 distinct ids plus repeats is fine.
+	rec := do(h, "GET", "/api/products?ids="+idList(100, "p-0001", "p-0002"), "", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("100 distinct: status = %d (%s)", rec.Code, rec.Body)
+	}
+	if got := strings.Join(listIDs(t, rec), ","); got != "p-0001,p-0002,p-0003" {
+		t.Errorf("100 distinct = %s", got)
+	}
+
+	rec = do(h, "GET", "/api/products?ids="+idList(101), "", "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("101 distinct: status = %d, want 400", rec.Code)
+	}
+	if got := strings.TrimSpace(rec.Body.String()); got != `{"error":"too many ids (max 100)"}` {
+		t.Errorf("body = %s", got)
 	}
 }

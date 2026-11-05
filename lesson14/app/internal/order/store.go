@@ -36,10 +36,15 @@ type Order struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-// ErrNotFound is returned by Get and SetStatus for a missing order, and by Get for another customer's.
-var ErrNotFound = errors.New("order not found")
+var (
+	// ErrNotFound is returned by Get and SetStatus for a missing order, and by Get for another customer's.
+	ErrNotFound = errors.New("order not found")
+	// ErrNotPending is returned by SetStatus for an order that is no longer PENDING_PAYMENT.
+	ErrNotPending = errors.New("order is not pending payment")
+)
 
 // Store persists orders in the orders schema. List returns the customer's orders newest first (never nil).
+// SetStatus moves a PENDING_PAYMENT order to s; any other current status is ErrNotPending.
 // MarkProcessed records an event id and reports whether this is its first delivery.
 type Store interface {
 	Create(ctx context.Context, o Order) error

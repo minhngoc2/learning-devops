@@ -59,6 +59,9 @@ func (s *memoryStore) SetStatus(_ context.Context, id string, st Status) error {
 	if !ok {
 		return ErrNotFound
 	}
+	if o.Status != PendingPayment {
+		return ErrNotPending
+	}
 	o.Status = st
 	o.UpdatedAt = time.Now().UTC()
 	s.orders[id] = o

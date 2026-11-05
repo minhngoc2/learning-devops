@@ -75,7 +75,11 @@ func (c *localConsumer) Run(ctx context.Context, h Handler) error {
 			continue
 		}
 		for _, e := range batch {
-			if err := h(ctx, e); err != nil {
+			if incomplete(log, e) {
+				if e.EventID == "" {
+					continue // cmd/localbus rejects such events at publish, and there is no id to ack
+				}
+			} else if err := h(ctx, e); err != nil {
 				log.Error("handle event; leaving it for redelivery", "event_id", e.EventID, "event_type", e.EventType, "err", err)
 				continue
 			}
