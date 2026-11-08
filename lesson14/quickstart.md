@@ -1,9 +1,9 @@
 # Quickstart: e-commerce microservices on ECS Fargate
 
-This guide takes you from an empty AWS account to a working shop (six services, a storefront, an event-driven order flow), through six failure scenarios and a release, and then back to empty. Each step has the commands to run and what to expect.
+This guide takes you from an empty AWS account to a working shop (six services, a storefront, an event-driven order flow), through the [test cases](testcases.md), and then back to empty. Each step has the commands to run and what to expect.
 
 > [!NOTE]
-> **About the sample output:** the live run has not been recorded yet, so every `Sample output` block for an AWS step is still a placeholder, and so are the resource counts marked `<N>`. Offline numbers (66 mocked test runs, 449 checkov checks, 9 prerendered storefront routes, 4 release-check tests) and the sample output of steps 1.2 and 4 come from real runs; those blocks are real output with the long `docker buildx` lines and absolute paths elided.
+> **About the sample output:** the live run has not been recorded yet, so every `Sample output` block for an AWS step is still a placeholder, and so are the resource counts marked `<N>`. Offline numbers (69 mocked test runs, 464 checkov checks, 9 prerendered storefront routes, 4 release-check tests) and the sample output of steps 1.2 and 4 come from real runs; those blocks are real output with the long `docker buildx` lines and absolute paths elided.
 
 | Step | What you do | AWS cost |
 | --- | --- | --- |
@@ -17,8 +17,8 @@ This guide takes you from an empty AWS account to a working shop (six services, 
 | [7](#7-publish-the-storefront) | Build the storefront and upload it to S3 | Running stack |
 | [8](#8-seed-the-catalogue) | Register the demo customer and create six products | Running stack |
 | [9](#9-verify) | Shop in the browser, then repeat the order flow with curl | Running stack |
-| [10](#10-scenario-demos) | Pause email, fail a payment, bypass attempts, WAF rate limit, service outage | Running stack (the WAF test adds a fraction of a cent) |
-| [11](#11-release-v2) | Ship image tag `v2` and check the rollout | Running stack |
+| [10](#10-run-the-test-cases) | Run the scenario tests in [testcases.md](testcases.md) | Running stack (the WAF test adds a fraction of a cent) |
+| [11](#11-release-v2) | Ship image tag `v2` (now [TC-09](testcases.md#tc-09-release-v2-with-little-downtime)) | Running stack |
 | [12](#12-cleanup) | Destroy the stack | None afterwards |
 | [13](#13-optional-remove-the-state-bucket) | Remove the state bucket | None |
 
@@ -33,13 +33,13 @@ You need:
 | --- | --- | --- |
 | Terraform | `>= 1.10, < 2.0` | Everything in `terraform/` |
 | AWS CLI | v2 | The scripts and the checks from step 5 on |
-| Docker | With `buildx` and `linux/arm64` support | The local run (step 3) and the image builds (steps 5 and 11) |
+| Docker | With `buildx` and `linux/arm64` support | The local run (step 3) and the image builds (step 5 and [TC-09](testcases.md#tc-09-release-v2-with-little-downtime)) |
 | Go | `>= 1.27.3` (`go.mod`) | Unit tests in step 4 |
 | Node.js + pnpm | Node 22, pnpm 12 (`packageManager` in `storefront/package.json`) | The storefront in steps 3, 4 and 7 |
 | Python 3, `jq` | Any | The scripts read JSON with Python; you read it with `jq` |
 | `curl` | `>= 7.76` | `check-release.sh` uses `--fail-with-body` |
 | TFLint, `uv` | Any | Optional lint and Checkov in step 4 |
-| `hey` | Any | Optional, for the WAF test in step 10.4 |
+| `hey` | Any | Optional, for the WAF test ([TC-07](testcases.md#tc-07-waf-rate-limit)) |
 
 The Fargate tasks run on ARM64. On an Apple Silicon Mac, Docker builds `linux/arm64` natively. On an x86 machine, `docker buildx ls` must list `linux/arm64`; if it does not, install QEMU emulation with `docker run --privileged --rm tonistiigi/binfmt --install arm64`.
 
@@ -243,7 +243,7 @@ for dir in terraform/bootstrap terraform/environments/dev terraform/modules/*; d
 done
 ```
 
-Expect 66 passed runs in total: bootstrap 2, the dev root 8, and 56 across the 14 modules. `init -backend=false` leaves the dev root's S3 backend from step 2 untouched. The dev root's tests set `run_db_init = false`, so the mocked apply does not call `scripts/run-db-init.sh`.
+Expect 69 passed runs in total: bootstrap 2, the dev root 9, and 58 across the 14 modules. `init -backend=false` leaves the dev root's S3 backend from step 2 untouched. The dev root's tests set `run_db_init = false`, so the mocked apply does not call `scripts/run-db-init.sh`.
 
 **4.3** Optional: lint and security scan:
 
@@ -256,7 +256,7 @@ uvx checkov --config-file terraform/.checkov.yaml -d terraform
 > [!NOTE]
 > `--config` must be an absolute path, which is why the command uses `$PWD`. With `--recursive`, TFLint ignores a relative path without warning and skips the AWS rules.
 
-Expect `Passed checks: 449, Failed checks: 0`. The accepted lab findings are skipped in `terraform/.checkov.yaml`, each with a reason.
+Expect `Passed checks: 464, Failed checks: 0`. The accepted lab findings are skipped in `terraform/.checkov.yaml`, each with a reason.
 
 **4.4** The release checker and the build script, with stubs and a dry run:
 
@@ -310,14 +310,14 @@ $ pnpm --dir storefront generate
 
 $ terraform fmt -check -recursive terraform && (the validate/test loop, last line of each)
 terraform/bootstrap               Success! 2 passed, 0 failed.
-terraform/environments/dev        Success! 8 passed, 0 failed.
+terraform/environments/dev        Success! 9 passed, 0 failed.
 terraform/modules/alb-internal    Success! 4 passed, 0 failed.
 terraform/modules/api-gateway     Success! 4 passed, 0 failed.
 terraform/modules/cognito         Success! 3 passed, 0 failed.
 terraform/modules/dynamodb-table  Success! 4 passed, 0 failed.
 terraform/modules/ecr             Success! 3 passed, 0 failed.
 terraform/modules/ecs-cluster     Success! 2 passed, 0 failed.
-terraform/modules/ecs-service     Success! 6 passed, 0 failed.
+terraform/modules/ecs-service     Success! 8 passed, 0 failed.
 terraform/modules/messaging       Success! 4 passed, 0 failed.
 terraform/modules/network         Success! 5 passed, 0 failed.
 terraform/modules/observability   Success! 4 passed, 0 failed.
@@ -331,7 +331,7 @@ $ tflint --chdir=terraform --recursive --config="$PWD/terraform/.tflint.hcl"
 
 $ uvx checkov --config-file terraform/.checkov.yaml -d terraform
 terraform scan results:
-Passed checks: 449, Failed checks: 0, Skipped checks: 0
+Passed checks: 464, Failed checks: 0, Skipped checks: 0
 
 $ python3 scripts/test_check_release.py
 ....
@@ -460,7 +460,7 @@ pnpm --dir storefront generate
 aws s3 sync storefront/.output/public "s3://$(tf output -raw storefront_bucket_name)/" --delete
 ```
 
-`--delete` removes old files from the bucket that are no longer in the build. The first upload needs no cache invalidation; later uploads do (step 11.3).
+`--delete` removes old files from the bucket that are no longer in the build. The first upload needs no cache invalidation; later uploads do ([TC-09](testcases.md#tc-09-release-v2-with-little-downtime), step 3).
 
 <details>
 <summary>Sample output</summary>
@@ -475,7 +475,7 @@ TODO: paste from live run
 
 `seed.sh` uploads `seed/images/*.png` to the images bucket under `products/`, registers (or reuses) an account through the public API, logs in, and creates the six products from `seed/products.json` with `POST /api/products`. Re-running it is safe.
 
-Choose the demo customer's email and password now; steps 9 and 10 use them. The Cognito password policy needs at least 8 characters with upper case, lower case, a number and a symbol. If you set `notify_from_email`, use that same verified address (see step 2.3):
+Choose the demo customer's email and password now; step 9 and the test cases use them. The Cognito password policy needs at least 8 characters with upper case, lower case, a number and a symbol. If you set `notify_from_email`, use that same verified address (see step 2.3):
 
 ```sh
 EMAIL='you@example.com'
@@ -497,7 +497,7 @@ TODO: paste from live run
 
 ## 9. Verify
 
-**9.1** Set the variables that steps 9 to 11 use. Set them again if you open a new terminal (with `tf`, `EMAIL` and `PASSWORD`, then log in again in 9.3 to set `TOKEN` and `AUTH`):
+**9.1** Set the variables that step 9 and the test cases use. Set them again if you open a new terminal (with `tf`, `EMAIL` and `PASSWORD`, then log in again in 9.3 to set `TOKEN` and `AUTH`):
 
 ```sh
 CF_URL="$(tf output -raw cloudfront_url)"
@@ -575,208 +575,17 @@ TODO: paste from live run
 
 </details>
 
-## 10. Scenario demos
+## 10. Run the test cases
 
-Each demo names the alarm that should change state. Alarms notify the ops topic, so with `alarm_email` set you also get an email on `ALARM` and on `OK`. To see one alarm's state:
-
-```sh
-aws cloudwatch describe-alarms --alarm-names lesson14-dev-notification-under-desired \
-  --query 'MetricAlarms[].[AlarmName,StateValue]' --output text
-```
-
-Autoscaling owns the task count (min 1, max 4), so pausing a service means lowering the scalable target's minimum to 0 **and** setting the desired count to 0. Always restore both; Terraform's settings are min 1, max 4.
-
-### 10.1 Email is down: pause notification
-
-**Pause** the Notification worker:
-
-```sh
-SVC=lesson14-dev-notification
-aws application-autoscaling register-scalable-target --service-namespace ecs \
-  --scalable-dimension ecs:service:DesiredCount --resource-id "service/$CLUSTER/$SVC" \
-  --min-capacity 0 --max-capacity 4
-aws ecs update-service --cluster "$CLUSTER" --service "$SVC" --desired-count 0 --query 'service.desiredCount'
-aws ecs wait services-stable --cluster "$CLUSTER" --services "$SVC"
-```
-
-**Place an order** with the curl commands from step 9.3 (`PUT` a cart item, then `POST /api/orders`). It still becomes `PAID`: Payment and Order don't depend on Notification.
-
-**Watch the queue grow.** Each order adds two messages (`OrderCreated` and `PaymentSucceeded`):
-
-```sh
-Q_URL="$(aws sqs get-queue-url --queue-name lesson14-dev-notification-order-events --query QueueUrl --output text)"
-DLQ_URL="$(aws sqs get-queue-url --queue-name lesson14-dev-notification-order-events-dlq --query QueueUrl --output text)"
-aws sqs get-queue-attributes --queue-url "$Q_URL" --attribute-names ApproximateNumberOfMessages
-```
-
-After 5 minutes with no running task, `lesson14-dev-notification-under-desired` goes to `ALARM`: the alarm treats missing `RunningTaskCount` datapoints as breaching, because Container Insights stops reporting a service that has no tasks (TODO: confirm the timing in the live run).
-
-**Restore** the worker and see the waiting emails go out:
-
-```sh
-aws application-autoscaling register-scalable-target --service-namespace ecs \
-  --scalable-dimension ecs:service:DesiredCount --resource-id "service/$CLUSTER/$SVC" \
-  --min-capacity 1 --max-capacity 4
-aws ecs update-service --cluster "$CLUSTER" --service "$SVC" --desired-count 1 --query 'service.desiredCount'
-aws ecs wait services-stable --cluster "$CLUSTER" --services "$SVC"
-aws logs tail /ecs/lesson14-dev-notification --since 5m --format short
-aws sqs get-queue-attributes --queue-url "$Q_URL" --attribute-names ApproximateNumberOfMessages
-aws sqs get-queue-attributes --queue-url "$DLQ_URL" --attribute-names ApproximateNumberOfMessages
-```
-
-The queue drains to `0`, and the log (or your inbox) shows the emails for the order. The DLQ stays at `0`, because the messages were waiting, not failing. A message goes to the DLQ only after 5 failed receives, for example when SES rejects every send. Then `lesson14-dev-notification-dlq-not-empty` fires within a minute. `lesson14-dev-notification-under-desired` returns to `OK`.
-
-### 10.2 Failed payment
-
-Product `p-0005` costs 9,999,999 cents. Ordered alone, the total ends in `99`, and the demo payment rule declines it:
-
-```sh
-curl -s -X DELETE -o /dev/null "$CF_URL/api/cart" -H "$AUTH"
-curl -s -X PUT "$CF_URL/api/cart/items/p-0005" -H "$AUTH" -H 'Content-Type: application/json' -d '{"quantity":1}' | jq
-ORDER_ID="$(curl -s -X POST "$CF_URL/api/orders" -H "$AUTH" | jq -r .id)"; echo "$ORDER_ID"
-sleep 5
-curl -s "$CF_URL/api/orders/$ORDER_ID" -H "$AUTH" | jq -r .status        # PAYMENT_FAILED
-curl -s "$CF_URL/api/payments/$ORDER_ID" -H "$AUTH" | jq '{status,reason}'
-```
-
-The payment shows `"status": "FAILED"` and `"reason": "card declined (demo rule: totals ending in 99)"`. In the browser, the order page offers **Add these items to your cart again**. Notification sends `Payment for order <id> failed: ...`.
-
-No alarm should fire: a declined card is a normal business outcome, handled successfully by every service.
-
-### 10.3 Direct execute-api call is refused
-
-The raw API Gateway URL skips CloudFront, so it skips WAF and lacks the `X-Origin-Verify` header. The ALB refuses it:
-
-```sh
-curl -i "$(tf output -raw api_endpoint)/api/products"     # 403 {"error":"forbidden"}
-curl -s -o /dev/null -w '%{http_code}\n' "$CF_URL/api/products"   # 200
-```
-
-No alarm should fire: this is a `4xx`, and the 5xx alarms ignore it. API Gateway's access log (`/aws/apigateway/lesson14-dev`) records the `403`.
-
-### 10.4 WAF rate limit
-
-The WAF rate rule blocks any single IP that sends more than 2,000 requests in 5 minutes. To trigger it, send about 3,000 requests to the storefront from your machine.
-
-> [!WARNING]
-> This blocks **your IP from the whole site** (storefront and API) for several minutes, until your rate falls below the limit. It costs a fraction of a cent (WAF, CloudFront and S3 requests). A plain loop sends requests one at a time and can take several minutes; WAF can also take a minute or two to start blocking after you pass the limit.
-
-With `hey`, if installed:
-
-```sh
-hey -n 3000 -c 20 "$CF_URL/"
-```
-
-Without it:
-
-```sh
-for i in $(seq 1 3000); do curl -s -o /dev/null -w '%{http_code}\n' "$CF_URL/"; done | sort | uniq -c
-```
-
-The status summary shows `200` at first and then `403`. Check that you are blocked, and wait until this returns `200` again before you continue:
-
-```sh
-curl -s -o /dev/null -w '%{http_code}\n' "$CF_URL/"
-```
-
-The dashboard's **WAF blocked requests** widget (in the Edge row) shows the blocks. With `alarm_email` set, `lesson14-dev-waf-blocked-requests` goes to `ALARM` when more than 100 requests are blocked in 5 minutes. That alarm lives in us-east-1:
-
-```sh
-aws cloudwatch describe-alarms --region us-east-1 --alarm-names lesson14-dev-waf-blocked-requests \
-  --query 'MetricAlarms[].[AlarmName,StateValue]' --output text
-```
-
-### 10.5 One service is down
-
-Stop Product Service the same way as in 10.1:
-
-```sh
-SVC=lesson14-dev-product
-aws application-autoscaling register-scalable-target --service-namespace ecs \
-  --scalable-dimension ecs:service:DesiredCount --resource-id "service/$CLUSTER/$SVC" \
-  --min-capacity 0 --max-capacity 4
-aws ecs update-service --cluster "$CLUSTER" --service "$SVC" --desired-count 0 --query 'service.desiredCount'
-aws ecs wait services-stable --cluster "$CLUSTER" --services "$SVC"
-```
-
-Now only the product paths fail. The other services keep working:
-
-```sh
-curl -s -o /dev/null -w '%{http_code}\n' "$CF_URL/api/products"                 # 503: no healthy target
-curl -s -o /dev/null -w '%{http_code}\n' "$CF_URL/api/orders" -H "$AUTH"         # 200
-curl -s -o /dev/null -w '%{http_code}\n' "$CF_URL/api/cart" -H "$AUTH"           # 200
-```
-
-In the browser, `/` still loads but shows an error instead of the products, while `/orders` still lists your orders. Checkout fails too, because Order reads the prices from Product at checkout.
-
-`lesson14-dev-product-under-desired` should go to `ALARM` after 5 minutes (same TODO as in 10.1). If you keep calling the product routes, `lesson14-dev-apigw-5xx-rate` can fire as well (more than 1 % `5xx` for 5 minutes). The ALB 5xx alarm counts only errors returned by targets, so an empty target group does not trigger it.
-
-**Restore** Product Service:
-
-```sh
-aws application-autoscaling register-scalable-target --service-namespace ecs \
-  --scalable-dimension ecs:service:DesiredCount --resource-id "service/$CLUSTER/$SVC" \
-  --min-capacity 1 --max-capacity 4
-aws ecs update-service --cluster "$CLUSTER" --service "$SVC" --desired-count 1 --query 'service.desiredCount'
-aws ecs wait services-stable --cluster "$CLUSTER" --services "$SVC"
-curl -s -o /dev/null -w '%{http_code}\n' "$CF_URL/api/products"                 # 200
-```
-
-### 10.6 Database fails in one AZ (prose)
-
-There is no demo for this one. The dev stack runs one RDS instance in one AZ (`multi_az = false`) to keep costs down, so an AZ failure would stop `user`, `product`, `order` and `payment` until the instance recovers. Cart keeps working, because DynamoDB already stores data across AZs, and the ECS services and the ALB already span both AZs.
-
-For production, set `multi_az = true` in `dev.tfvars`. RDS then keeps a synchronous standby in the second AZ and fails over to it automatically, at the same DNS name. It doubles the database cost, and changing it on a running instance takes a while. With `single_nat_gateway = false`, each AZ also gets its own NAT gateway, so outbound traffic survives an AZ failure.
-
-<details>
-<summary>Sample output</summary>
-
-```text
-TODO: paste from live run
-```
-
-</details>
+The scenarios (a declined payment, email down, one service down, bypass attempts, spoofed headers, the WAF rate limit, masked logs and the `v2` release) are now test cases, each with its requirement, steps, expected result, restore commands and last result. Run them from **[testcases.md](testcases.md)**, then come back for cleanup.
 
 ## 11. Release v2
 
-Image tags are immutable: a release pushes a new tag and points the stack at it. ECS replaces tasks one at a time (minimum 100 %, maximum 200 % of the desired count), and the circuit breaker rolls back to the last working deployment if the new tasks fail their health checks.
-
-**11.1** Optionally change something in `app/` (run `go -C app test ./...` afterwards). Then build and push `v2`:
-
-```sh
-bash scripts/build-push.sh v2
-```
-
-**11.2** Set `image_tag = "v2"` in `terraform/environments/dev/dev.tfvars`, then plan, apply and check the rollout:
-
-```sh
-tf plan -var-file=dev.tfvars -out=dev.tfplan
-tf apply dev.tfplan
-bash scripts/check-release.sh v2
-```
-
-The plan should only replace the task definitions (the image tag changes), replace `terraform_data.db_init` (so `db-init` runs the new image before the services roll), and update the services that use them. TODO: fill in the counts from the live run. `check-release.sh` fails if any service is not stable, its primary deployment is not `COMPLETED`, or its image is not `:v2`, which is what you see after a rollback.
-
-**11.3** Storefront changes don't need Terraform. Generate and upload again, then invalidate the CloudFront cache so viewers get the new files:
-
-```sh
-pnpm --dir storefront generate
-aws s3 sync storefront/.output/public "s3://$(tf output -raw storefront_bucket_name)/" --delete
-aws cloudfront create-invalidation --distribution-id "$(tf output -raw cloudfront_distribution_id)" --paths "/*"
-```
-
-<details>
-<summary>Sample output</summary>
-
-```text
-TODO: paste from live run
-```
-
-</details>
+Moved to [TC-09 in testcases.md](testcases.md#tc-09-release-v2-with-little-downtime).
 
 ## 12. Cleanup
 
-**12.1** If a scenario demo left a service paused, restore it first (10.1 or 10.5). Then preview what will be destroyed:
+**12.1** If a test case left a service paused, resume it first (see [After the tests](testcases.md#after-the-tests)). Then preview what will be destroyed:
 
 ```sh
 tf plan -destroy -var-file=dev.tfvars
@@ -894,10 +703,10 @@ Payment uses a fixed demo rule: a total whose cents end in `99` is declined with
 | `GET /api/products?ids=…` returns `400 too many ids (max 100)` | More than 100 distinct ids in one request | Split the request |
 | `build-push.sh` fails with `DRY_RUN must be 1 or unset` | `DRY_RUN` is set to something else (`yes`, `true`, …) | `unset DRY_RUN`, or `DRY_RUN=1` for a dry run |
 | The CloudFront URL returns `403` with an XML `AccessDenied` body | The storefront was never uploaded | Step 7 |
-| The old storefront still shows after an upload | CloudFront cached the old files | `aws cloudfront create-invalidation … --paths "/*"` (step 11.3) |
-| Every request to the site returns `403` | The WAF rate rule blocked your IP (step 10.4) | Wait a few minutes until your request rate falls below the limit |
+| The old storefront still shows after an upload | CloudFront cached the old files | `aws cloudfront create-invalidation … --paths "/*"` ([TC-09](testcases.md#tc-09-release-v2-with-little-downtime), step 3) |
+| Every request to the site returns `403` | The WAF rate rule blocked your IP ([TC-07](testcases.md#tc-07-waf-rate-limit)) | Wait a few minutes until your request rate falls below the limit |
 | Notification log shows `MessageRejected` / `Email address is not verified`, and the notification DLQ fills | SES sandbox: the sender or the customer's address is not verified | Click the SES verification email, and order only as a verified address. Or unset `notify_from_email` for log mode |
 | No email arrives, but the log shows `email (log mode, not sent)` | `notify_from_email` is unset, so Notification is in log mode | Expected. Set `notify_from_email` and apply to send real emails |
-| A plan after a demo wants to change `aws_appautoscaling_target` | A paused service still has min capacity 0 | Restore min 1, max 4 and desired 1 (10.1 or 10.5), or apply the plan |
+| A plan after a test case wants to change `aws_appautoscaling_target` | A paused service still has min capacity 0 | `resume_service <name>` from [testcases.md](testcases.md#before-you-start) (min 1, max 4, desired 1), or apply the plan |
 | `terraform fmt -check` lists your `*.tfvars` | Your copy isn't formatted | `terraform fmt -recursive terraform` |
 | TFLint passes but skips the AWS rules | `--config` is a relative path | Use `--config="$PWD/terraform/.tflint.hcl"` |

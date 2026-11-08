@@ -4,6 +4,7 @@
 *.md
 !/README.md
 !/quickstart.md
+!/testcases.md
 !/terraform/modules/*/README.md
 
 # Local build artifacts.
