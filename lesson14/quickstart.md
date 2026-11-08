@@ -850,6 +850,30 @@ TODO: paste from live run
 
 To run the lab again, start from step 1. The bucket name is free again, so bootstrap creates the same name.
 
+## API reference
+
+All routes are under the CloudFront URL. 🔒 = needs `Authorization: Bearer <id_token>`. API Gateway allows 50 req/s (burst 100). Protected routes **overwrite** `X-Customer-Sub` and `X-Customer-Email` from the token, and public routes **remove** them.
+
+| Request | Status | Body |
+| --- | --- | --- |
+| `POST /api/users/register` `{email,password,display_name}` | `201` | The customer. `409` `email already registered` once the profile exists. A retry after a half-finished sign-up completes it and returns `201`. `400` when Cognito rejects the password |
+| `POST /api/users/login` `{email,password}` | `200` | `{id_token,access_token,refresh_token,expires_in}`. `401` `invalid credentials`, also for an empty email or password |
+| `GET /api/users/me` 🔒 | `200` | `{sub,email,display_name,created_at}` |
+| `GET /api/products[?ids=a,b][&category=c]` | `200` | List of products with `price_cents`, `currency` (`VND`) and `image_url`. `400` for more than 100 distinct `ids` |
+| `GET /api/products/{id}` | `200` | One product. `404` `product not found` |
+| `POST /api/products` 🔒 | `201` | Seed/demo only. `409` for an existing id. `400` `currency must be VND` |
+| `GET /api/cart` 🔒 | `200` | `{customer_sub,items:[{product_id,quantity}],updated_at}` |
+| `PUT /api/cart/items/{productId}` 🔒 `{quantity}` | `200` | The cart. `0` removes the line. `400` outside 0–99. `422` `cart is full (max 100 lines)` for a new product on a 100-line cart |
+| `DELETE /api/cart` 🔒 | `204` | Empty |
+| `POST /api/orders` 🔒 | `201` | The order, `PENDING_PAYMENT`, prices copied at checkout. `422` `cart is empty` or `unknown product <id>` |
+| `GET /api/orders` 🔒, `GET /api/orders/{id}` 🔒 | `200` | Your orders, newest first. Status ends as `PAID` or `PAYMENT_FAILED`. `404` for someone else's order |
+| `GET /api/payments/{orderId}` 🔒 | `200` | `{id,order_id,amount_cents,status,reason,…}`. `404` until Payment has handled the order |
+| Protected route without a valid token | `401` | From API Gateway; no service runs |
+| Any other `/api/...` route | `404` | From API Gateway |
+| The raw `execute-api` URL | `403` | `{"error":"forbidden"}` from the ALB (no `X-Origin-Verify`) |
+
+Payment uses a fixed demo rule: a total whose cents end in `99` is declined with `card declined (demo rule: totals ending in 99)`. The seed product `p-0005` costs 9,999,999 cents, so ordering one of it alone fails.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
