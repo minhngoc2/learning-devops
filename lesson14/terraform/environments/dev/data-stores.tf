@@ -14,19 +14,9 @@ module "rds" {
   skip_final_snapshot     = var.db_skip_final_snapshot
 }
 
-# The only paths into the database: from the task SGs of the services that own a schema, and from db-init.
-resource "aws_vpc_security_group_ingress_rule" "db_from_service" {
-  for_each = local.db_services
-
-  security_group_id            = module.rds.security_group_id
-  referenced_security_group_id = module.service[each.key].security_group_id
-  from_port                    = 5432
-  to_port                      = 5432
-  ip_protocol                  = "tcp"
-  description                  = "PostgreSQL from ${each.key}"
-}
-
-# Separate from db_from_service: db-init runs before the services exist (terraform_data.db_init waits for this rule).
+# The only paths into the database. The four DB services get theirs inside module.service (database_security_group_ids
+# in services.tf), so each rule exists before its service starts. db-init's rule stays here: db-init runs before the
+# services exist, and terraform_data.db_init waits for exactly this rule.
 resource "aws_vpc_security_group_ingress_rule" "db_from_db_init" {
   security_group_id            = module.rds.security_group_id
   referenced_security_group_id = module.db_init.security_group_id

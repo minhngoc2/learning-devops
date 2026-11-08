@@ -148,7 +148,9 @@ module "service" {
   target_group_arn = lookup(local.service_target_groups, each.key, null)
   # Static keys, possibly unknown IDs: for_each stays known at plan time.
   ingress_security_group_ids = contains(keys(local.web_services), each.key) ? { alb = module.alb.security_group_id } : {}
-  log_retention_days         = var.log_retention_days
+  # Only the services that own a schema may reach PostgreSQL; cart and notification get no path.
+  database_security_group_ids = contains(local.db_services, each.key) ? { rds = module.rds.security_group_id } : {}
+  log_retention_days          = var.log_retention_days
 
   # The DB services crash until db-init has created their roles; all six wait (harmless for cart and notification).
   # db_init: the schemas and roles must exist before the services start.

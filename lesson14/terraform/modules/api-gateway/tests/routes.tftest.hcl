@@ -75,10 +75,13 @@ run "public_routes_have_no_authorizer" {
   }
   assert {
     condition = (
-      contains(keys(aws_apigatewayv2_integration.public.request_parameters), "remove:header.X-Customer-Sub") &&
-      contains(keys(aws_apigatewayv2_integration.public.request_parameters), "remove:header.X-Customer-Email")
+      aws_apigatewayv2_integration.public.request_parameters == tomap({
+        "remove:header.X-Customer-Sub"   = "''"
+        "remove:header.X-Customer-Email" = "''"
+      })
     )
-    error_message = "The public integration must strip client-supplied identity headers."
+    # An empty value is not a removal: the provider sends "" to delete a mapping, so AWS would keep none.
+    error_message = "The public integration must strip client-supplied identity headers, each with the value \"''\"."
   }
 }
 

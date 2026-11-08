@@ -146,6 +146,41 @@ run "autoscaling_bounds" {
   }
 }
 
+run "database_ingress_from_task_sg" {
+  command = plan
+  variables {
+    database_security_group_ids = { rds = "sg-0a1b2c3d4e5f60002" }
+  }
+
+  # The task SG ID is unknown at plan time; a fixed ID lets the assertion check the rule's source.
+  override_resource {
+    target          = aws_security_group.this
+    values          = { id = "sg-0a1b2c3d4e5f60003" }
+    override_during = plan
+  }
+
+  assert {
+    condition = (
+      keys(aws_vpc_security_group_ingress_rule.database) == ["rds"] &&
+      aws_vpc_security_group_ingress_rule.database["rds"].security_group_id == "sg-0a1b2c3d4e5f60002" &&
+      aws_vpc_security_group_ingress_rule.database["rds"].referenced_security_group_id == "sg-0a1b2c3d4e5f60003" &&
+      aws_vpc_security_group_ingress_rule.database["rds"].cidr_ipv4 == null &&
+      aws_vpc_security_group_ingress_rule.database["rds"].from_port == 5432 &&
+      aws_vpc_security_group_ingress_rule.database["rds"].to_port == 5432
+    )
+    error_message = "database_security_group_ids must let only this task SG into the database SG on 5432."
+  }
+}
+
+run "no_database_path_by_default" {
+  command = plan
+
+  assert {
+    condition     = length(aws_vpc_security_group_ingress_rule.database) == 0
+    error_message = "Without database_security_group_ids the task SG gets no database rule."
+  }
+}
+
 run "task_role_policy_optional" {
   command = plan
   variables {

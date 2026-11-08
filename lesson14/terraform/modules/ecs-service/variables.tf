@@ -178,6 +178,25 @@ variable "ingress_security_group_ids" {
   nullable    = false
 }
 
+variable "database_security_group_ids" {
+  description = "Static key => database security group that must accept this task SG on database_port (e.g. { rds = <RDS SG> }); {} = no database. The rule is created before the service, so the first tasks can connect."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "database_port" {
+  description = "Port the database_security_group_ids rules open (PostgreSQL by default)."
+  type        = number
+  default     = 5432
+  nullable    = false
+
+  validation {
+    condition     = var.database_port >= 1 && var.database_port <= 65535 && floor(var.database_port) == var.database_port
+    error_message = "database_port must be a whole number between 1 and 65535."
+  }
+}
+
 variable "target_group_arn" {
   description = "Target group to register container app:<container_port> with; null = no load balancer (worker)."
   type        = string

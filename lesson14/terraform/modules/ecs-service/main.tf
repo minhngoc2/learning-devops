@@ -109,6 +109,19 @@ moved {
   to   = aws_vpc_security_group_ingress_rule.this["alb"]
 }
 
+# Lives in the module, not the caller, so aws_ecs_service can depend on it: a rule the caller builds from this module's
+# output can only be created after the whole module, i.e. after the steady-state wait it is needed for.
+resource "aws_vpc_security_group_ingress_rule" "database" {
+  for_each = var.database_security_group_ids
+
+  security_group_id            = each.value
+  referenced_security_group_id = aws_security_group.this.id
+  from_port                    = var.database_port
+  to_port                      = var.database_port
+  ip_protocol                  = "tcp"
+  description                  = "Database from ${var.name}"
+}
+
 # Egress to AWS APIs (ECR, Secrets Manager, CloudWatch, SQS, SNS, DynamoDB, S3) and to RDS.
 resource "aws_vpc_security_group_egress_rule" "all" {
   security_group_id = aws_security_group.this.id
@@ -204,6 +217,9 @@ resource "aws_ecs_service" "this" {
   lifecycle {
     ignore_changes = [desired_count]
   }
+
+  # Tasks that open a database connection at start-up crash until this path exists.
+  depends_on = [aws_vpc_security_group_ingress_rule.database]
 }
 
 resource "aws_appautoscaling_target" "this" {

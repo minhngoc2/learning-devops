@@ -55,9 +55,10 @@ resource "aws_apigatewayv2_integration" "public" {
   connection_id          = aws_apigatewayv2_vpc_link.this.id
   payload_format_version = "1.0"
 
+  # "''" as in the AWS docs: the provider treats "" as "delete this mapping", so AWS would store no removal at all.
   request_parameters = {
-    "remove:header.X-Customer-Sub"   = ""
-    "remove:header.X-Customer-Email" = ""
+    "remove:header.X-Customer-Sub"   = "''"
+    "remove:header.X-Customer-Email" = "''"
   }
 }
 

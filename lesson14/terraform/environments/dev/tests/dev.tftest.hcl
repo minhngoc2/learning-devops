@@ -219,10 +219,12 @@ run "db_ingress_only_from_db_services_and_db_init" {
 
   assert {
     condition = (
-      toset(keys(aws_vpc_security_group_ingress_rule.db_from_service)) == toset(["user", "product", "order", "payment"]) &&
-      alltrue([for r in concat(values(aws_vpc_security_group_ingress_rule.db_from_service), [aws_vpc_security_group_ingress_rule.db_from_db_init]) :
-        r.security_group_id == module.rds.security_group_id && r.cidr_ipv4 == null && r.referenced_security_group_id != null &&
-      r.from_port == 5432 && r.to_port == 5432]) &&
+      toset([for s, m in module.service : s if length(m.database_ingress_rule_ids) > 0]) == toset(["user", "product", "order", "payment"]) &&
+      alltrue([for s in ["user", "product", "order", "payment"] : keys(module.service[s].database_ingress_rule_ids) == ["rds"]]) &&
+      aws_vpc_security_group_ingress_rule.db_from_db_init.security_group_id == module.rds.security_group_id &&
+      aws_vpc_security_group_ingress_rule.db_from_db_init.cidr_ipv4 == null &&
+      aws_vpc_security_group_ingress_rule.db_from_db_init.from_port == 5432 &&
+      aws_vpc_security_group_ingress_rule.db_from_db_init.to_port == 5432 &&
       aws_vpc_security_group_ingress_rule.db_from_db_init.referenced_security_group_id == module.db_init.security_group_id
     )
     error_message = "The RDS SG may accept 5432 only from the four DB services' SGs and db-init's SG, never from a CIDR."
@@ -280,6 +282,22 @@ run "ses_identity_optional" {
       contains(flatten([for s in jsondecode(local.task_policies["notification"]).Statement : s.Action]), "ses:SendEmail")
     )
     error_message = "With a sender, notification must send through SES and may call ses:SendEmail."
+  }
+}
+
+run "pii_masked_in_every_log_group" {
+  command = plan
+
+  assert {
+    condition = (
+      toset(keys(aws_cloudwatch_log_data_protection_policy.this)) == toset(["user", "product", "cart", "order", "payment", "notification", "db-init", "api-access"]) &&
+      alltrue([for p in aws_cloudwatch_log_data_protection_policy.this :
+        jsondecode(p.policy_document).Statement[0].DataIdentifier == jsondecode(p.policy_document).Statement[1].DataIdentifier &&
+        contains(jsondecode(p.policy_document).Statement[1].DataIdentifier, "arn:aws:dataprotection::aws:data-identifier/EmailAddress") &&
+        contains(jsondecode(p.policy_document).Statement[1].DataIdentifier, "arn:aws:dataprotection::aws:data-identifier/IpAddress") &&
+      jsondecode(p.policy_document).Statement[1].Operation == { Deidentify = { MaskConfig = {} } }])
+    )
+    error_message = "Every service, db-init and API access log group must mask emails and IP addresses."
   }
 }
 

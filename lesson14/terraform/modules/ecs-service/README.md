@@ -19,6 +19,8 @@ One Fargate (ARM64) workload: task definition with a single container named `app
 | `secrets` | `{}` | Env var → Secrets Manager ARN (optional `:key::` suffix) |
 | `task_policy_json` | `null` | Inline task role policy; `null` = none |
 | `ingress_security_group_ids` | `{}` | Static key → SG allowed on `container_port` (`{ alb = … }`); `{}` = no ingress |
+| `database_security_group_ids` | `{}` | Static key → database SG that accepts this task SG on `database_port` (`{ rds = … }`). Created before the service, so the first tasks can connect; `{}` = no database |
+| `database_port` | `5432` | Port for the `database_security_group_ids` rules (1–65535) |
 | `target_group_arn` | `null` | Register `app:<container_port>`; `null` = worker |
 | `health_check_command` | `["CMD","/app","-healthcheck"]` | Container health check; starts with `CMD`/`CMD-SHELL` |
 | `log_retention_days` | `7` | A CloudWatch Logs retention value |
@@ -29,7 +31,8 @@ One Fargate (ARM64) workload: task definition with a single container named `app
 | --- | --- |
 | `service_name` | CloudWatch `ServiceName`; `null` without a service |
 | `task_definition_arn` | `aws ecs run-task` (db-init) |
-| `security_group_id` | Source for DB ingress rules |
+| `security_group_id` | Source for DB ingress rules created outside a service (db-init) |
+| `database_ingress_rule_ids` | Key → ID of each `database_security_group_ids` rule |
 | `task_role_name`, `task_role_arn` | Attach or reference app permissions |
 | `execution_role_arn` | Reference the execution role |
 | `log_group_name` | `aws logs tail` |
@@ -46,8 +49,9 @@ module "service" {
   subnet_ids                 = module.network.private_subnet_ids
   image                      = "${module.ecr.repository_urls["user"]}:${var.image_tag}"
   target_group_arn           = module.alb.target_group_arns["user"]
-  ingress_security_group_ids = { alb = module.alb.security_group_id }
-  secrets                    = { DB_PASSWORD = "${module.db.secret_arn}:password::" }
+  ingress_security_group_ids  = { alb = module.alb.security_group_id }
+  database_security_group_ids = { rds = module.rds.security_group_id }
+  secrets                     = { DB_PASSWORD = "${module.db.secret_arn}:password::" }
 }
 ```
 

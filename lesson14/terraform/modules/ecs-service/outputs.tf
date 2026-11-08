@@ -13,6 +13,11 @@ output "security_group_id" {
   value       = aws_security_group.this.id
 }
 
+output "database_ingress_rule_ids" {
+  description = "Key => ID of the rule that lets this task SG into each database_security_group_ids group."
+  value       = { for k, r in aws_vpc_security_group_ingress_rule.database : k => r.security_group_rule_id }
+}
+
 output "task_role_name" {
   description = "Task role name, to attach extra policies from the caller."
   value       = aws_iam_role.task.name
