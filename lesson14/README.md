@@ -50,14 +50,5 @@ ci/                   Sample GitHub Actions pipeline (not wired)
 | Release with little downtime | Immutable tags, rolling deploy, circuit breaker, `check-release.sh` | [11](quickstart.md#11-release-v2) |
 | Abnormal requests | WAF rules and rate limit, origin check, throttling, alarms | [10.3](quickstart.md#103-direct-execute-api-call-is-refused), [10.4](quickstart.md#104-waf-rate-limit) |
 
-## Lessons learned
-
-- **HTTP APIs cannot carry WAF.** WAF sits on CloudFront, and a secret origin header blocks requests that skip CloudFront and call `execute-api` directly.
-- **CloudFront WAF lives in us-east-1**, and so do its metrics and alarm topic.
-- **No `custom_error_response`.** It would also rewrite API errors. A CloudFront Function handles SPA routing instead.
-- **Identity headers come from the gateway, never the client.**
-- **Images before services.** The first deploy creates ECR with a targeted apply, pushes the images, then applies the full stack.
-- **Autoscaling owns the task count.** Terraform ignores `desired_count` after creation.
-
 > [!CAUTION]
 > The stack is billed hourly (about $4/day). It includes a NAT gateway, RDS, an ALB, six Fargate tasks and WAF. Always [clean up](quickstart.md#12-cleanup) when you finish, and never commit `*.tfstate`, `*.tfvars` or `dev.backend.hcl`.
